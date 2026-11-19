@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local configuration (may hold GITHUB_TOKEN)
+.env
+
+# Generated reports (regenerable, contain student data)
+scratch/exports/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

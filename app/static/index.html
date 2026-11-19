@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Docker Hub Submission Evaluator</title>
+  <style>
+    :root {
+      --primary: #1f4e78;
+      --primary-hover: #153755;
+      --bg: #f4f6f9;
+      --card-bg: #ffffff;
+      --text: #2c3e50;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --success: #16a34a;
+      --danger: #dc2626;
+      --link: #0563c1;
+      --warning-bg: #fffbeb;
+      --warning-border: #fef3c7;
+      --warning-text: #92400e;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      background: var(--card-bg);
+      padding: 20px 28px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-text h1 {
+      font-size: 1.45rem;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+    .header-text p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 16px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.2s, opacity 0.2s;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background-color: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background-color: var(--primary-hover);
+    }
+    .btn-secondary {
+      background-color: #f1f5f9;
+      color: #334155;
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background-color: #e2e8f0;
+    }
+    .btn-outline {
+      background-color: transparent;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+    .btn-outline:hover:not(:disabled) {
+      background-color: #f0f7ff;
+    }
+    .btn:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+    .btn-sm {
+      padding: 5px 11px;
+      font-size: 0.82rem;
+    }
+
+    /* Upload State Styles */
+    #upload-section {
+      background: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      padding: 36px 28px;
+      margin-bottom: 24px;
+    }
+    .drop-zone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 44px 24px;
+      text-align: center;
+      background: #fafbfc;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 24px;
+    }
+    .drop-zone.dragover {
+      border-color: var(--primary);
+      background: #f0f7ff;
+    }
+    .drop-icon {
+      font-size: 2.8rem;
+      color: var(--primary);
+      margin-bottom: 12px;
+      line-height: 1;
+    }
+    .drop-text {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+    .drop-hint {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+    .upload-footer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+    }
+    .format-info {
+      flex: 1;
+      min-width: 280px;
+    }
+    .format-info h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 8px;
+    }
+    .format-info ul {
+      list-style-type: disc;
+      padding-left: 20px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .format-info li {
+      margin-bottom: 4px;
+    }
+
+    /* Loaded State Roster Banner */
+    .roster-banner {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 20px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .roster-info {
+      font-size: 0.95rem;
+      color: #334155;
+    }
+    .roster-info strong {
+      color: var(--primary);
+    }
+    .roster-info em {
+      font-style: normal;
+      color: #0f172a;
+      font-weight: 500;
+    }
+
+    /* Skipped / Warnings details */
+    .skipped-box {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      border-radius: 6px;
+      padding: 10px 16px;
+      margin-bottom: 16px;
+      font-size: 0.86rem;
+      color: var(--warning-text);
+    }
+    .skipped-box summary {
+      font-weight: 600;
+      cursor: pointer;
+      outline: none;
+    }
+    .skipped-box ul {
+      margin-top: 8px;
+      padding-left: 20px;
+    }
+    .skipped-box li {
+      margin-bottom: 3px;
+    }
+
+    /* Controls & Table */
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .search-box {
+      flex: 1;
+      min-width: 280px;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 9px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.92rem;
+      outline: none;
+      background: var(--card-bg);
+    }
+    .search-box input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(31,78,120,0.15);
+    }
+    .stats-badge {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      background: #f1f5f9;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th, td {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    th {
+      background-color: #f8fafc;
+      color: #475569;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+    tr:hover td {
+      background-color: #f8fbfd;
+    }
+    .roll-cell {
+      font-family: monospace;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #334155;
+    }
+    .docker-link {
+      color: var(--link);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .docker-link:hover {
+      text-decoration: underline;
+    }
+    .actions-cell {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 36px;
+      color: var(--text-muted);
+    }
+
+    /* Progress bar for export job */
+    .export-progress-panel {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 6px;
+      padding: 12px 18px;
+      margin-top: 12px;
+      display: none;
+    }
+    .progress-bar-track {
+      background: #dbeafe;
+      border-radius: 4px;
+      height: 8px;
+      width: 100%;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .progress-bar-fill {
+      background: var(--primary);
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 13px;
+      height: 13px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+    .spinner-dark {
+      border: 2px solid rgba(0,0,0,0.2);
+      border-top-color: var(--primary);
+      width: 22px;
+      height: 22px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.9rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      animation: fadeIn 0.3s ease;
+      max-width: 380px;
+    }
+    .toast-success { background: var(--success); }
+    .toast-error { background: var(--danger); }
+    .toast-info { background: var(--primary); }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .modal {
+      background: #fff;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 780px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+    .modal-header h3 {
+      color: var(--primary);
+      font-size: 1.25rem;
+    }
+    .modal-close {
+      background: transparent;
+      border: none;
+      font-size: 1.35rem;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
+    .modal-body {
+      overflow-y: auto;
+      margin-bottom: 16px;
+      padding-right: 4px;
+      flex: 1;
+    }
+    .totals-bar {
+      display: flex;
+      gap: 16px;
+      background: #f1f5f9;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .totals-item {
+      font-weight: 500;
+    }
+    .totals-item strong {
+      color: var(--primary);
+    }
+    .modal-filter-box {
+      margin-bottom: 12px;
+    }
+    .modal-filter-box input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.88rem;
+      outline: none;
+    }
+    .modal-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .modal-table th, .modal-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-table th {
+      background: #f8fafc;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-text">
+        <h1>Docker Hub Submission Evaluator</h1>
+        <p>Live repository evaluation, submission date tracking &amp; Excel reporting</p>
+      </div>
+      <div id="header-actions" style="display: none;">
+        <button id="btn-export-all" class="btn btn-primary" onclick="startExportAll()">
+          <span>Download All (Excel)</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Upload Card (Empty State) -->
+    <div id="upload-section">
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" accept=".xlsx" style="display: none;" onchange="handleFileSelect(event)">
+        <div class="drop-icon">&#8682;</div>
+        <div class="drop-text">Drag &amp; drop student roster Excel file here, or click to browse</div>
+        <div class="drop-hint">Only .xlsx files are supported (max 2 MB, up to 500 students)</div>
+      </div>
+
+      <div class="upload-footer">
+        <div class="format-info">
+          <h4>Required Roster Format:</h4>
+          <ul>
+            <li>Header row with columns: <strong>Roll No</strong> (optional), <strong>Name</strong> (optional), and <strong>Docker ID</strong> (mandatory).</li>
+            <li>Docker ID can be a username (e.g. <code>alice</code>) or full profile URL (e.g. <code>https://hub.docker.com/u/alice</code>).</li>
+            <li>Files are parsed in memory on the server and are never saved to disk.</li>
+          </ul>
+        </div>
+        <div>
+          <a href="/api/template" class="btn btn-secondary" download>
+            &#128196; Download Sample Template (.xlsx)
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loaded Roster State -->
+    <div id="roster-view" style="display: none;">
+      <!-- Banner -->
+      <div class="roster-banner">
+        <div class="roster-info">
+          Loaded <strong id="banner-count">0</strong> students from <em id="banner-filename">roster.xlsx</em>
+        </div>
+        <div>
+          <button class="btn btn-secondary btn-sm" onclick="resetRoster()">
+            Upload a different file
+          </button>
+        </div>
+      </div>
+
+      <!-- Skipped/Warnings Box (if any) -->
+      <div id="skipped-container" style="display: none;">
+        <details class="skipped-box">
+          <summary id="skipped-summary">0 rows skipped</summary>
+          <ul id="skipped-list"></ul>
+        </details>
+      </div>
+
+      <!-- Export All Progress Panel -->
+      <div id="export-progress-panel" class="export-progress-panel">
+        <div style="display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 500; color: #1e3a8a;">
+          <span id="export-status-label">Compiling submissions for all students...</span>
+          <span id="export-counter">0 / 0</span>
+        </div>
+        <div class="progress-bar-track">
+          <div id="export-progress-fill" class="progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="Search by name, roll number, or Docker ID..." oninput="filterTable()">
+        </div>
+        <div id="student-count-badge" class="stats-badge">Showing 0 students</div>
+      </div>
+
+      <!-- Students Table -->
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 180px;">Roll Number</th>
+              <th>Student Name</th>
+              <th style="width: 240px;">Docker ID</th>
+              <th style="width: 250px; text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="students-tbody">
+            <tr>
+              <td colspan="4" class="empty-state">No students loaded</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview Modal -->
+  <div id="modal-backdrop" class="modal-backdrop" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="modal-title">Student Submissions Preview</h3>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <div class="spinner spinner-dark" style="margin: 30px auto; display: block;"></div>
+      </div>
+      <div style="text-align: right; border-top: 1px solid var(--border); padding-top: 12px;">
+        <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    let currentRosterId = null;
+    let currentFilename = null;
+    let allStudents = [];
+    let modalRepos = [];
+    let activeJobId = null;
+    let jobPollTimer = null;
+
+    // Drag and drop event listeners
+    const dropZone = document.getElementById('drop-zone');
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('dragover');
+      }, false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('dragover');
+      }, false);
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files.length > 0) {
+        uploadFile(files[0]);
+      }
+    });
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        uploadFile(file);
+      }
+      event.target.value = '';
+    }
+
+    async function uploadFile(file) {
+      if (!file.name.toLowerCase().endsWith('.xlsx')) {
+        showToast('Only .xlsx files are supported.', 'error');
+        return;
+      }
+
+      showToast(`Uploading and validating ${file.name}...`, 'info');
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/roster', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || 'Failed to upload roster');
+        }
+
+        currentRosterId = data.roster_id;
+        currentFilename = data.filename;
+        localStorage.setItem('roster_id', currentRosterId);
+        localStorage.setItem('roster_filename', currentFilename);
+
+        displaySkippedInfo(data.skipped || []);
+        await fetchStudentsForRoster(currentRosterId, currentFilename);
+        showToast(`Loaded ${data.students_loaded} students successfully`, 'success');
+      } catch (err) {
+        showToast(`Upload failed: ${err.message}`, 'error');
+      }
+    }
+
+    function displaySkippedInfo(skipped) {
+      const skippedContainer = document.getElementById('skipped-container');
+      const skippedSummary = document.getElementById('skipped-summary');
+      const skippedList = document.getElementById('skipped-list');
+
+      if (!skipped || skipped.length === 0) {
+        skippedContainer.style.display = 'none';
+        return;
+      }
+
+      skippedSummary.textContent = `${skipped.length} row(s) skipped during parsing (click to view details)`;
+      skippedList.innerHTML = skipped.map(item => `
+        <li>Row ${item.row_index}: <strong>${escapeHtml(item.reason)}</strong> ${item.raw_docker_cell ? `(cell: <code>${escapeHtml(item.raw_docker_cell)}</code>)` : ''}</li>
+      `).join('');
+      skippedContainer.style.display = 'block';
+    }
+
+    async function fetchStudentsForRoster(rosterId, filename) {
+      try {
+        // Fetch roster metadata (including skipped list)
+        try {
+          const metaRes = await fetch(`/api/roster/${rosterId}`);
+          if (metaRes.ok) {
+            const meta = await metaRes.json();
+            displaySkippedInfo(meta.skipped || []);
+            if (meta.filename) filename = meta.filename;
+          }
+        } catch (e) {
+          console.warn('Could not fetch roster metadata:', e);
+        }
+
+        const res = await fetch(`/api/roster/${rosterId}/students`);
+        if (res.status === 404) {
+          clearRosterStorage();
+          showUploadState();
+          showToast('Previous session expired. Please re-upload your student list.', 'info');
+          return;
+        }
+        if (!res.ok) {
+          throw new Error('Failed to fetch students from roster');
+        }
+
+        allStudents = await res.json();
+        currentRosterId = rosterId;
+        currentFilename = filename || 'roster.xlsx';
+
+        document.getElementById('banner-count').textContent = allStudents.length;
+        document.getElementById('banner-filename').textContent = currentFilename;
+
+        document.getElementById('upload-section').style.display = 'none';
+        document.getElementById('roster-view').style.display = 'block';
+        document.getElementById('header-actions').style.display = 'block';
+
+        renderTable(allStudents);
+      } catch (err) {
+        showToast(`Error: ${err.message}`, 'error');
+        resetRoster();
+      }
+    }
+
+    function renderTable(students) {
+      const tbody = document.getElementById('students-tbody');
+      const badge = document.getElementById('student-count-badge');
+      badge.textContent = `Showing ${students.length} of ${allStudents.length} students`;
+
+      if (students.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No matching students found</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = students.map(s => {
+        const rollDisplay = (s.roll && s.roll.trim() && s.roll !== '-') ? escapeHtml(s.roll) : '<span style="color:#94a3b8">—</span>';
+        const nameDisplay = (s.name && s.name.trim() && s.name !== '-') ? escapeHtml(s.name) : '<span style="color:#94a3b8">—</span>';
+
+        return `
+          <tr>
+            <td class="roll-cell">${rollDisplay}</td>
+            <td><strong>${nameDisplay}</strong></td>
+            <td>
+              <a href="https://hub.docker.com/u/${encodeURIComponent(s.docker_id.toLowerCase())}" 
+                 target="_blank" rel="noopener noreferrer" class="docker-link">
+                ${escapeHtml(s.docker_id)} &nearr;
+              </a>
+            </td>
+            <td class="actions-cell">
+              <button class="btn btn-secondary btn-sm" id="btn-prev-${escapeHtml(s.docker_id)}" onclick="previewStudent('${escapeHtml(s.docker_id)}')">
+                Preview
+              </button>
+              <button class="btn btn-primary btn-sm" id="btn-dl-${escapeHtml(s.docker_id)}" onclick="downloadStudent('${escapeHtml(s.docker_id)}')">
+                Download Excel
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function filterTable() {
+      const q = document.getElementById('search-input').value.toLowerCase().trim();
+      if (!q) {
+        renderTable(allStudents);
+        return;
+      }
+      const filtered = allStudents.filter(s => 
+        (s.roll && s.roll.toLowerCase().includes(q)) ||
+        (s.name && s.name.toLowerCase().includes(q)) ||
+        (s.docker_id && s.docker_id.toLowerCase().includes(q))
+      );
+      renderTable(filtered);
+    }
+
+    function resetRoster() {
+      clearRosterStorage();
+      showUploadState();
+    }
+
+    function clearRosterStorage() {
+      currentRosterId = null;
+      currentFilename = null;
+      allStudents = [];
+      localStorage.removeItem('roster_id');
+      localStorage.removeItem('roster_filename');
+    }
+
+    function showUploadState() {
+      document.getElementById('upload-section').style.display = 'block';
+      document.getElementById('roster-view').style.display = 'none';
+      document.getElementById('header-actions').style.display = 'none';
+      document.getElementById('skipped-container').style.display = 'none';
+      stopExportPolling();
+    }
+
+    function formatIsoToIst(isoStr) {
+      if (!isoStr) return '<span style="color:#94a3b8">—</span>';
+      try {
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return isoStr;
+        return d.toLocaleString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).replace(',', '');
+      } catch (e) {
+        return isoStr;
+      }
+    }
+
+    async function previewStudent(dockerId) {
+      const btn = document.getElementById(`btn-prev-${dockerId}`);
+      if (btn) btn.disabled = true;
+
+      const modal = document.getElementById('modal-backdrop');
+      const modalBody = document.getElementById('modal-body');
+      const modalTitle = document.getElementById('modal-title');
+      
+      modalTitle.textContent = `Student Submissions: ${dockerId}`;
+      modalBody.innerHTML = `<div style="text-align:center; padding:30px;"><div class="spinner spinner-dark" style="margin:0 auto 12px;"></div> Loading live repository submissions...</div>`;
+      modal.style.display = 'flex';
+
+      try {
+        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/students/${encodeURIComponent(dockerId)}/preview`);
+        if (res.status === 404) {
+          closeModal();
+          showToast('Session expired or student not found. Refreshing roster...', 'error');
+          await fetchStudentsForRoster(currentRosterId, currentFilename);
+          return;
+        }
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Failed to fetch preview');
+        }
+        const data = await res.json();
+        modalRepos = data.repos || [];
+
+        const rollText = (data.roll && data.roll !== '-') ? ` (${data.roll})` : '';
+        const nameText = (data.name && data.name !== '-') ? data.name : data.docker_id;
+        modalTitle.textContent = `${nameText}${rollText}`;
+
+        modalBody.innerHTML = `
+          <div class="totals-bar">
+            <div class="totals-item">Docker ID: <strong>${escapeHtml(data.docker_id)}</strong></div>
+            <div class="totals-item">Total Repos: <strong>${data.total_repos}</strong></div>
+            <div class="totals-item">Total Pulls: <strong>${data.total_pulls}</strong></div>
+            ${data.error_note ? `<div class="totals-item" style="color:var(--danger)">${escapeHtml(data.error_note)}</div>` : ''}
+          </div>
+
+          <div class="modal-filter-box">
+            <input type="text" id="modal-repo-search" placeholder="Filter repositories by name..." oninput="filterModalRepos()">
+          </div>
+
+          <table class="modal-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">S.No</th>
+                <th>Repository Name</th>
+                <th style="width: 170px;">Submission Date (IST)</th>
+                <th style="width: 80px; text-align: right;">Pulls</th>
+              </tr>
+            </thead>
+            <tbody id="modal-repos-tbody">
+            </tbody>
+          </table>
+        `;
+        renderModalRepos(modalRepos);
+      } catch (err) {
+        modalBody.innerHTML = `<div style="color:var(--danger); padding:20px; text-align:center;">Error: ${escapeHtml(err.message)}</div>`;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    function renderModalRepos(repos) {
+      const tbody = document.getElementById('modal-repos-tbody');
+      if (!tbody) return;
+
+      if (!repos || repos.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No repositories found</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = repos.map((r, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>
+            <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="docker-link">
+              ${escapeHtml(r.name)} &nearr;
+            </a>
+            ${r.notes ? `<div style="font-size:0.75rem; color:#dc2626; font-style:italic;">${escapeHtml(r.notes)}</div>` : ''}
+          </td>
+          <td>${formatIsoToIst(r.submission_date)}</td>
+          <td style="text-align: right; font-weight:600;">${r.pulls}</td>
+        </tr>
+      `).join('');
+    }
+
+    function filterModalRepos() {
+      const q = document.getElementById('modal-repo-search').value.toLowerCase().trim();
+      if (!q) {
+        renderModalRepos(modalRepos);
+        return;
+      }
+      const filtered = modalRepos.filter(r => r.name.toLowerCase().includes(q));
+      renderModalRepos(filtered);
+    }
+
+    function closeModal() {
+      document.getElementById('modal-backdrop').style.display = 'none';
+    }
+
+    async function downloadStudent(dockerId) {
+      const btn = document.getElementById(`btn-dl-${dockerId}`);
+      const origText = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner"></span> Generating...`;
+      }
+
+      try {
+        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/students/${encodeURIComponent(dockerId)}/export`);
+        if (res.status === 404) {
+          showToast('Session expired. Please re-upload your student roster.', 'error');
+          resetRoster();
+          return;
+        }
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Failed to download Excel file');
+        }
+
+        const blob = await res.blob();
+        let filename = `${dockerId}.xlsx`;
+        const disp = res.headers.get('Content-Disposition');
+        if (disp && disp.includes('filename=')) {
+          const match = disp.match(/filename="?([^"]+)"?/);
+          if (match && match[1]) filename = match[1];
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        showToast(`Downloaded ${filename}`, 'success');
+      } catch (err) {
+        showToast(`Export failed: ${err.message}`, 'error');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }
+      }
+    }
+
+    async function startExportAll() {
+      const btn = document.getElementById('btn-export-all');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> Starting Export...`;
+
+      try {
+        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/export-all/start`, {
+          method: 'POST'
+        });
+
+        if (res.status === 404) {
+          showToast('Session expired. Please re-upload your roster.', 'error');
+          resetRoster();
+          return;
+        }
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || 'Failed to start export job');
+        }
+
+        activeJobId = data.job_id;
+        document.getElementById('export-progress-panel').style.display = 'block';
+        showToast('Background export job started. Tracking progress...', 'info');
+
+        pollJobStatus();
+      } catch (err) {
+        showToast(`Could not start export: ${err.message}`, 'error');
+        btn.disabled = false;
+        btn.innerHTML = `<span>Download All (Excel)</span>`;
+      }
+    }
+
+    function pollJobStatus() {
+      stopExportPolling();
+      jobPollTimer = setInterval(async () => {
+        if (!activeJobId) {
+          stopExportPolling();
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/jobs/${activeJobId}`);
+          if (!res.ok) {
+            throw new Error('Failed to retrieve job status');
+          }
+          const job = await res.json();
+
+          const pct = job.total > 0 ? Math.round((job.done / job.total) * 100) : 0;
+          document.getElementById('export-progress-fill').style.width = `${pct}%`;
+          document.getElementById('export-counter').textContent = `${job.done} / ${job.total} (${pct}%)`;
+
+          const currentMsg = job.current ? `Fetching ${job.current}...` : 'Compiling Excel report...';
+          document.getElementById('export-status-label').textContent = `Export progress: ${currentMsg}`;
+
+          if (job.status === 'done') {
+            stopExportPolling();
+            document.getElementById('export-status-label').textContent = 'Export completed! Downloading file...';
+            showToast('Export complete. Downloading Excel report...', 'success');
+            
+            // Trigger download
+            window.location.href = `/api/jobs/${activeJobId}/download`;
+
+            setTimeout(() => {
+              document.getElementById('export-progress-panel').style.display = 'none';
+              const btn = document.getElementById('btn-export-all');
+              btn.disabled = false;
+              btn.innerHTML = `<span>Download All (Excel)</span>`;
+              activeJobId = null;
+            }, 3000);
+          } else if (job.status === 'failed') {
+            stopExportPolling();
+            document.getElementById('export-status-label').textContent = `Export failed: ${job.error || 'Unknown error'}`;
+            showToast(`Export failed: ${job.error || 'Server error'}`, 'error');
+            const btn = document.getElementById('btn-export-all');
+            btn.disabled = false;
+            btn.innerHTML = `<span>Download All (Excel)</span>`;
+            activeJobId = null;
+          }
+        } catch (err) {
+          // If polling network fails temporarily, keep polling or notify
+          console.error('Job polling error:', err);
+        }
+      }, 2000);
+    }
+
+    function stopExportPolling() {
+      if (jobPollTimer) {
+        clearInterval(jobPollTimer);
+        jobPollTimer = null;
+      }
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Auto-load on startup from URL param or localStorage
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const paramRosterId = urlParams.get('roster_id');
+      const savedRosterId = paramRosterId || localStorage.getItem('roster_id');
+      const savedFilename = urlParams.get('filename') || localStorage.getItem('roster_filename');
+      if (savedRosterId) {
+        fetchStudentsForRoster(savedRosterId, savedFilename);
+      } else {
+        showUploadState();
+      }
+    });
+  </script>
+</body>
+</html>
