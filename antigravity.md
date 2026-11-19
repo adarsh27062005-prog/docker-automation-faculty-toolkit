@@ -52,7 +52,7 @@ The project evolved through targeted phases and major upgrades:
 
 ### Phases 1–6: Baseline Application Architecture
 - **Phase 1 (Parser):** Markdown table parser `app/parser.py` extracting student data from legacy `docker_id.md`.
-- **Phase 2 (Docker Hub Client & Cache):** Async client `app/dockerhub.py` utilizing `httpx` with semaphore-limited concurrency (`asyncio.Semaphore(5)`) and an in-memory TTL cache (`app/cache.py`, 900-second TTL).
+- **Phase 2 (Docker Hub Client & Cache):** Async client `app/dockerhub.py` utilizing `httpx` with semaphore-limited concurrency (`asyncio.Semaphore(3)`) and an in-memory TTL cache (`app/cache.py`, 900-second TTL).
 - **Phase 3 (GitHub Link Discovery):** Pattern matching engine in `app/github_links.py` checking `overrides.csv`, description text, and optional GitHub API enrichment.
 - **Phase 4 (Excel Engine):** Multi-sheet workbook builder in `app/excel.py` using `openpyxl`, with native IST date formatting and frozen headers.
 - **Phase 5 (FastAPI & Web UI):** Single-page web dashboard with search, tabular presentation, and direct download triggers.
@@ -138,14 +138,15 @@ flowchart TD
 - **`RosterStore`:** In-memory dictionary protected by LRU eviction (max 50 rosters) and automatic expiration (12-hour TTL).
 
 ### 2. `app/dockerhub.py` (Live API Client)
-- **Async Concurrency:** Managed via `httpx.AsyncClient` with `asyncio.Semaphore(5)` to prevent client-side socket saturation.
+- **Async Concurrency:** Managed via `httpx.AsyncClient` with a module-level `asyncio.Semaphore(3)` (plus a 20 ms pause per request); export-all additionally processes at most 2 students at a time.
 - **Pagination Traversal:** Follows Docker Hub `next` links until exhausted, ensuring no repositories or tags are dropped.
-- **Rate-Limit Resilience:** Exponential backoff retry handler intercepting HTTP 429 and 5xx responses up to 3 times.
+- **Rate-Limit Resilience:** Exponential backoff retry handler intercepting HTTP 429 and 5xx responses (up to 5 attempts, delay doubling from 1 s to a cap of 8 s; 15 s timeout per request).
 - **Submission Basis Engine:** Configurable date basis via `SUBMISSION_DATE_BASIS`:
   - `last_push` (Default): $\max(\text{tag\_last\_pushed})$.
   - `first_push`: $\min(\text{tag\_last\_pushed})$.
   - `created`: Repository creation timestamp.
-- **Untagged Handling:** Repositories with no pushed tags receive a blank submission timestamp and note `"No image pushed"`.
+- **Untagged Handling:** Repositories whose tag list Docker Hub returned complete and empty receive a blank submission timestamp and note `"No image pushed"`.
+- **Incomplete Data Handling:** If a tag request fails (rate limit / network / 5xx) the repo is flagged `data_incomplete` with note `"Tag data unavailable (Docker Hub error) - re-check later"` (or `"Tag list incomplete ..."` if a later page failed), never "No image pushed". A failed repo-list page adds `"Repository list incomplete ..."` to the student's `error_note`. Profiles with any `error_note` are **not cached**, so the next request retries.
 
 ### 3. `app/excel.py` (Excel Generation & Security)
 - **Formula Injection Mitigation (`set_safe_cell`):**
@@ -158,13 +159,13 @@ flowchart TD
   ```
   Prevents malicious spreadsheet formulas from executing when faculty open exported workbooks in Microsoft Excel or LibreOffice Calc.
 - **Single-Student Workbook Layout:**
-  - **Sheet 1: `Repositories` (Active):** Title block (rows 1–3), frozen header row 4, filter enabled. Columns: `S.No`, `Repository Name` (hyperlinked to Docker Hub), `Submission Date (IST)`, `Downloads`, `Stars`, `Tags Count`, `Notes`, optional conditional columns (`Status`, `GitHub URL`).
+  - **Sheet 1: `Repositories` (Active):** Title block (rows 1–3), frozen header row 4, filter enabled. Columns: `S.No`, `Repository Name` (hyperlinked to Docker Hub), `Submission Date (IST)`, `Repo Created (IST)`, `First Push (IST)`, `Last Push (IST)`, `Downloads (Pulls)`, `Stars`, `Tags Count`, optional `Status` (only if `SUBMISSION_DEADLINE` set), optional `GitHub URL` + `Other GitHub Links` (only if any link found), `Notes`.
   - **Sheet 2: `Summary`:** Metadata block (Roll No, Name, Docker ID, Total Repos, Total Downloads, Latest Push).
-  - **Sheet 3: `Tags`:** Granular per-tag breakdown (`Repository`, `Tag Name`, `Pushed (IST)`, `Digest`).
+  - **Sheet 3: `Tags`:** Granular per-tag breakdown (`Repository`, `Tag Name`, `Pushed At (IST)`, `Size (MB)`, `Architecture`, `OS`).
   - **Sheet 4: `Notes`:** Methodology, definitions, and grading instructions.
 - **Combined Workbook (`All Submissions`):**
   - **Sheet 1: `All Submissions`:** All repositories across all students sorted by Roll Number ascending, then Submission Date descending.
-  - **Sheet 2: `Student Summary`:** One row per student summarizing total repositories, total downloads, and latest submission date.
+  - **Sheet 2: `Student Summary`:** One row per student: total repositories, total downloads, latest and earliest submission date, and count of repos with no image pushed (excludes repos whose tag data failed to load).
 
 ### 4. `app/jobs.py` (Background Export Engine)
 - **Problem Solved:** Exporting 50+ students involves hundreds of API calls to Docker Hub. Performing this synchronously in a single HTTP request causes proxy and browser timeouts.
@@ -182,7 +183,7 @@ flowchart TD
 | Method | Endpoint | Description | Status Codes |
 |---|---|---|---|
 | `GET` | `/` | Serves single-page web dashboard | `200` |
-| `GET` | `/api/health` | Health check endpoint returning status and timestamp | `200` |
+| `GET` | `/api/health` | Health check endpoint returning `{"status": "ok"}` | `200` |
 | `GET` | `/api/template` | Downloads official roster upload Excel template (`roster_template.xlsx`) | `200` |
 | `POST` | `/api/roster` | Uploads and parses an Excel roster file (`multipart/form-data`) | `200`, `400`, `413` |
 | `GET` | `/api/roster/{roster_id}` | Retrieves roster summary, loaded counts, and skipped rows | `200`, `404` |
@@ -191,7 +192,7 @@ flowchart TD
 | `GET` | `/api/roster/{roster_id}/students/{docker_id}/export` | Downloads dedicated single-student Excel workbook | `200`, `404` |
 | `POST` | `/api/roster/{roster_id}/export-all/start` | Initiates background export-all job | `202`, `404` |
 | `GET` | `/api/jobs/{job_id}` | Polls progress of background export-all job | `200`, `404` |
-| `GET` | `/api/jobs/{job_id}/download` | Downloads completed combined Excel workbook | `200`, `400`, `404` |
+| `GET` | `/api/jobs/{job_id}/download` | Downloads completed combined Excel workbook | `200`, `404`, `409` (not finished), `500` |
 
 ---
 
@@ -210,7 +211,7 @@ flowchart TD
    - Maximum upload size strictly limited to 2 MB (`MAX_UPLOAD_MB`).
    - Maximum students per roster capped at 500 (`MAX_STUDENTS`).
    - Maximum rows scanned per sheet capped at 5,000.
-   - External Docker Hub API concurrency bounded to 5 simultaneous requests.
+   - External Docker Hub API concurrency bounded to 3 simultaneous requests (2 students at a time during export-all).
 
 ---
 
@@ -218,13 +219,14 @@ flowchart TD
 
 The application underwent rigorous multi-stage automated and manual verification:
 
-### Automated Test Suite (46 Tests, 100% Offline)
+### Automated Test Suite (55 Tests, 100% Offline)
 All tests run with mocked network layers via `pytest`:
 - **`tests/test_roster.py` (12 tests):** Validates header aliases, case normalization, missing column rejection, URL normalization, duplicate skipping, invalid Docker ID detection, non-`.xlsx` rejection, and formula injection escaping in inputs.
 - **`tests/test_routes_and_jobs.py` (9 tests):** Validates template download, upload endpoints, preview routes, single export generation, background job lifecycle, job polling, and 404 boundary handling.
 - **`tests/test_dockerhub.py` (9 tests):** Validates repo pagination, tag pagination, submission date calculation (`last_push`, `first_push`, `created`), 429 backoff logic, untagged repo handling, and 404 user handling.
 - **`tests/test_excel.py` (8 tests):** Validates single student workbook structure, sheet ordering (`Repositories` active first), native IST date conversion, column auto-fit, formula injection protection (`set_safe_cell`), and combined workbook generation.
 - **`tests/test_parser.py` (8 tests):** Validates backward compatibility for markdown parsing (`docker_id.md`).
+- **`tests/test_reliability_fixes.py` (9 tests):** Failed/partial tag and repo-list fetches are flagged and not cached, "No image pushed" counts exclude failed fetches, non-ASCII download filenames, background task retention.
 
 ### Mandatory Verification Results
 1. **Zero Hardcoded References:** Verified via codebase regex scan; zero hits for legacy course strings (`"23CYS"`, `"20CYS402"`, `"59"`, `"docker_id.md"`) in `app/` and `app/static/`.
@@ -293,9 +295,28 @@ To make the evaluator accessible to faculty across a university local network:
 - [app/config.py](file:///d:/docker_automation/app/config.py): Application configuration and environment variable loader.
 - [app/static/index.html](file:///d:/docker_automation/app/static/index.html): Responsive single-page dashboard with drag-and-drop upload and progress tracking.
 - [requirements.txt](file:///d:/docker_automation/requirements.txt): Pinned dependencies for reproducible deployment.
-- [.env.example](file:///d:/docker_automation/dev.env.example): Reference configuration file.
+- [.env.example](file:///d:/docker_automation/.env.example): Reference configuration file.
 - [README.md](file:///d:/docker_automation/README.md): Quick-start user manual and campus deployment guide.
 - [sample_roster.xlsx](file:///d:/docker_automation/sample_roster.xlsx): Sample 59-student Excel roster for testing and evaluation.
 - [sample_messy.xlsx](file:///d:/docker_automation/sample_messy.xlsx): Test roster demonstrating edge case skipping and validation.
 - [IMPLEMENTATION_PLAN.md](file:///d:/docker_automation/IMPLEMENTATION_PLAN.md): Original specification document (Read-Only).
 - [docker_id.md](file:///d:/docker_automation/docker_id.md): Legacy raw student markdown table (Read-Only).
+
+---
+
+## 10. Post-Handoff Changes (Claude Code, 2026-11-19)
+
+Work continued in Claude Code after the Antigravity sessions. Changes:
+
+1. **No false "No image pushed"** (`app/dockerhub.py`): failed tag fetches and broken pagination are flagged (`RepoSubmission.data_incomplete`, notes above) instead of looking like missing submissions, and incomplete profiles are never cached.
+2. **Repo list errors**: a non-200 repo-list response (other than a 404 for a missing user) now reports "Failed to fetch repositories" instead of "No public repositories".
+3. **Background export reliability** (`app/jobs.py`): running export tasks are held in `JobManager._tasks` so asyncio cannot garbage-collect them mid-job.
+4. **Unicode-safe downloads** (`app/excel.py: content_disposition`): all download routes send an ASCII `filename` plus RFC 5987 `filename*`, so rosters named in Tamil or other scripts no longer cause a 500 on download.
+5. **Minor**: `overrides.csv` is read once per student instead of once per repo; single-student filenames use the IST date; removed the unused file-persistence stub from `app/cache.py`.
+6. **Tests**: `tests/test_reliability_fixes.py` added (suite now 55 tests).
+7. **Browser verification**: a user-level Playwright skill (`~/.claude/skills/playwright`) was added to Claude Code and used to verify the upload → skipped rows → single-student Excel download flow and phone-width layout against a live server.
+
+### Known gaps (not yet built)
+- `GITHUB_TOKEN` is read but GitHub API enrichment (`enrich_github_repo`) is never called, so it currently has no effect.
+- State (rosters, jobs, cache) is in-process: run a single uvicorn worker; a restart clears everything.
+- The project folder is not under version control yet.

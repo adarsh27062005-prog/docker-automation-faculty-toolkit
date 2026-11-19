@@ -1,16 +1,9 @@
-import json
-import logging
 import time
-from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from app.config import settings
 
-logger = logging.getLogger(__name__)
-
-CACHE_FILE = Path("scratch/cache_store.json")
-
 class SimpleMemoryCache:
-    """In-memory key-value cache with TTL and optional file persistence."""
+    """In-memory key-value cache with TTL (process-local; cleared on restart)."""
 
     def __init__(self, default_ttl: int = settings.CACHE_TTL_SECONDS):
         self.default_ttl = default_ttl

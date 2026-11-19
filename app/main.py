@@ -12,6 +12,7 @@ from app.excel import (
     workbook_to_bytes,
     make_student_filename,
     generate_template_workbook,
+    content_disposition,
 )
 from app.roster import parse_roster_excel, roster_store, RosterParseError
 from app.jobs import job_manager
@@ -41,9 +42,7 @@ async def download_roster_template():
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
+        headers={"Content-Disposition": content_disposition(filename)}
     )
 
 @app.post("/api/roster")
@@ -204,9 +203,7 @@ async def export_student_excel(roster_id: str, docker_id: str):
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
+        headers={"Content-Disposition": content_disposition(filename)}
     )
 
 @app.post("/api/roster/{roster_id}/export-all/start")
@@ -253,7 +250,5 @@ async def download_job_excel(job_id: str):
     return Response(
         content=job.excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f'attachment; filename="{job.download_filename}"'
-        }
+        headers={"Content-Disposition": content_disposition(job.download_filename)}
     )

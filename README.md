@@ -82,6 +82,7 @@ To host the evaluator on a campus server accessible to faculty across the local 
    http://<server-ip>:8000
    ```
    *(Find the server IP using `ipconfig` on Windows or `ip addr` on Linux).*
+   Run a single worker only (no `--workers N`): uploaded rosters, export jobs and the cache live in process memory.
 
 3. **Windows Firewall Rule (if running on Windows Server):**
    Open PowerShell as Administrator and run:
@@ -107,7 +108,7 @@ To host the evaluator on a campus server accessible to faculty across the local 
 | `MAX_ROSTERS` | `50` | Maximum concurrent in-memory rosters (LRU eviction) |
 | `JOB_TTL_HOURS` | `2` | Background export job retention TTL in hours |
 | `SUBMISSION_DEADLINE` | *(None)* | Optional ISO datetime to enable the "Status" column (On time / Late) |
-| `GITHUB_TOKEN` | *(None)* | Optional GitHub Personal Access Token for API metadata enrichment |
+| `GITHUB_TOKEN` | *(None)* | Reserved for GitHub API enrichment (not yet wired into reports; currently has no effect) |
 
 ---
 
@@ -117,4 +118,4 @@ Run the complete test suite completely offline with mocked network calls:
 ```bash
 pytest
 ```
-*All 46 test cases execute in ~3 seconds.*
+*All 55 test cases execute in under 10 seconds.*

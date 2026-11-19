@@ -8,7 +8,7 @@ import httpx
 
 from app.cache import cache
 from app.config import settings
-from app.github_links import discover_github_links
+from app.github_links import discover_github_links, load_overrides
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,17 @@ class RepoSubmission:
     status: Optional[str] = None      # "On time", "Late", or None
     notes: str = ""
     tags: List[TagInfo] = field(default_factory=list)
+    # True when Docker Hub failed (rate limit / network / 5xx) while listing tags,
+    # so dates and "No image pushed" cannot be trusted for this repo.
+    data_incomplete: bool = False
+
+    @property
+    def no_image_pushed(self) -> bool:
+        return not self.data_incomplete and self.submission_date is None
+
+TAGS_UNAVAILABLE_NOTE = "Tag data unavailable (Docker Hub error) - re-check later"
+TAGS_PARTIAL_NOTE = "Tag list incomplete (Docker Hub error) - dates may be off"
+REPOS_PARTIAL_NOTE = "Repository list incomplete (Docker Hub error) - re-check later"
 
 @dataclass
 class StudentProfileSummary:
@@ -140,7 +151,8 @@ class DockerHubClient:
         self,
         client: httpx.AsyncClient,
         did_lower: str,
-        repo_item: dict
+        repo_item: dict,
+        overrides: Optional[Dict[str, str]] = None,
     ) -> RepoSubmission:
         repo_name = repo_item.get("name", "")
         pull_count = repo_item.get("pull_count", 0)
@@ -154,11 +166,14 @@ class DockerHubClient:
             docker_id=did_lower,
             full_description=None,
             description=desc,
+            overrides=overrides,
         )
 
-        # Step 2: Fetch tags live (following pagination)
+        # Step 2: Fetch tags live (following pagination).
+        # tags_status: "complete" | "partial" (a later page failed) | "unavailable" (first page failed)
         tags_url = f"{DOCKER_HUB_API_BASE}/repositories/{did_lower}/{repo_name}/tags?page_size=100"
         raw_tags: List[dict] = []
+        tags_status = "complete"
         tags_resp = await self._fetch(client, tags_url)
 
         if tags_resp is not None and getattr(tags_resp, "status_code", None) == 200:
@@ -172,7 +187,15 @@ class DockerHubClient:
                     raw_tags.extend(nt_data.get("results", []))
                     next_tag_url = nt_data.get("next")
                 else:
+                    tags_status = "partial"
+                    logger.warning("Tag pagination failed for %s/%s; tag list incomplete", did_lower, repo_name)
                     break
+        else:
+            tags_status = "unavailable"
+            logger.warning(
+                "Could not fetch tags for %s/%s (status=%s)",
+                did_lower, repo_name, getattr(tags_resp, "status_code", "no response"),
+            )
 
         # Step 3: Check README in single repo details only if GITHUB_README_LOOKUP is enabled
         if primary_gh == "Not found" and settings.GITHUB_README_LOOKUP:
@@ -186,6 +209,7 @@ class DockerHubClient:
                         docker_id=did_lower,
                         full_description=full_desc,
                         description=desc,
+                        overrides=overrides,
                     )
 
         # Parse tag information
@@ -231,8 +255,16 @@ class DockerHubClient:
         status = calculate_submission_status(submission_date)
         repo_page_url = f"https://hub.docker.com/r/{did_lower}/{repo_name}"
 
-        # Notes: if no tags pushed, explicit requirement: "No image pushed"
-        notes = "No image pushed" if not has_pushed_tags else ""
+        # Notes: "No image pushed" only when Docker Hub actually returned a complete,
+        # empty tag list. A failed tag fetch must not look like a missing submission.
+        if tags_status == "unavailable":
+            notes = TAGS_UNAVAILABLE_NOTE
+        elif tags_status == "partial":
+            notes = TAGS_PARTIAL_NOTE
+        elif not has_pushed_tags:
+            notes = "No image pushed"
+        else:
+            notes = ""
 
         return RepoSubmission(
             name=repo_name,
@@ -252,6 +284,7 @@ class DockerHubClient:
             status=status,
             notes=notes,
             tags=tag_objects,
+            data_incomplete=(tags_status != "complete"),
         )
 
     async def get_student_profile(
@@ -289,6 +322,7 @@ class DockerHubClient:
             user_is_404 = (user_resp is not None and user_resp.status_code == 404)
 
             raw_repos: List[dict] = []
+            repos_partial = False
             if repo_list_resp is not None and repo_list_resp.status_code == 200:
                 page_data = repo_list_resp.json()
                 raw_repos.extend(page_data.get("results", []))
@@ -300,9 +334,12 @@ class DockerHubClient:
                         raw_repos.extend(next_data.get("results", []))
                         next_url = next_data.get("next")
                     else:
+                        repos_partial = True
+                        logger.warning("Repository pagination failed for %s; list incomplete", did_lower)
                         break
 
-            if user_is_404 and not raw_repos:
+            repo_list_is_404 = (repo_list_resp is not None and repo_list_resp.status_code == 404)
+            if (user_is_404 or (repo_list_is_404 and not user_found)) and not raw_repos:
                 summary = StudentProfileSummary(
                     roll=roll,
                     name=name,
@@ -319,8 +356,11 @@ class DockerHubClient:
                     cache.set(cache_key, summary)
                 return summary
 
-            if repo_list_resp is None:
-                logger.error("Could not fetch repositories for %s (%s) due to network error", roll, docker_id)
+            if repo_list_resp is None or repo_list_resp.status_code != 200:
+                logger.error(
+                    "Could not fetch repositories for %s (%s): status=%s",
+                    roll, docker_id, getattr(repo_list_resp, "status_code", "no response"),
+                )
                 return StudentProfileSummary(
                     roll=roll,
                     name=name,
@@ -351,9 +391,10 @@ class DockerHubClient:
                     cache.set(cache_key, summary)
                 return summary
 
-            # Process all repositories concurrently
+            # Process all repositories concurrently (overrides.csv read once per student)
+            overrides = load_overrides()
             repo_tasks = [
-                self._process_repo(client, did_lower, r_item)
+                self._process_repo(client, did_lower, r_item, overrides)
                 for r_item in raw_repos
             ]
             submissions = list(await asyncio.gather(*repo_tasks))
@@ -367,6 +408,13 @@ class DockerHubClient:
             total_pulls = sum(s.pull_count for s in submissions)
             repos_with_gh = sum(1 for s in submissions if s.github_url != "Not found")
 
+            incomplete_repos = sum(1 for s in submissions if s.data_incomplete)
+            notes: List[str] = []
+            if repos_partial:
+                notes.append(REPOS_PARTIAL_NOTE)
+            if incomplete_repos:
+                notes.append(f"Tag data incomplete for {incomplete_repos} repo(s) (Docker Hub error) - re-check later")
+
             summary = StudentProfileSummary(
                 roll=roll,
                 name=name,
@@ -377,9 +425,11 @@ class DockerHubClient:
                 total_pulls=total_pulls,
                 repos_with_github=repos_with_gh,
                 submissions=submissions,
-                error_note="",
+                error_note="; ".join(notes),
             )
 
+            # Only cache complete results, so a transient Docker Hub error is retried
+            # on the next request instead of being served for CACHE_TTL_SECONDS.
             if use_cache and not summary.error_note:
                 cache.set(cache_key, summary)
             return summary

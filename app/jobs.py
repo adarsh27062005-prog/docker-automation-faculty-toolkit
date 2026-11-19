@@ -5,7 +5,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from zoneinfo import ZoneInfo
 from app.config import settings
 from app.dockerhub import dockerhub_client, StudentProfileSummary
@@ -33,6 +33,9 @@ class JobManager:
         self.ttl_seconds = ttl_hours * 3600
         self._jobs: Dict[str, ExportJob] = {}
         self._lock = asyncio.Lock()
+        # Strong references to running tasks: asyncio only keeps weak references,
+        # so an unreferenced task can be garbage-collected mid-export.
+        self._tasks: Set[asyncio.Task] = set()
 
     def _purge_expired(self) -> None:
         now = time.time()
@@ -75,7 +78,9 @@ class JobManager:
             self._jobs[job_id] = job
 
             # Launch asynchronous task
-            asyncio.create_task(self._run_export_job(job, roster))
+            task = asyncio.create_task(self._run_export_job(job, roster))
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
             return job_id
 
     async def _run_export_job(self, job: ExportJob, roster: Roster) -> None:

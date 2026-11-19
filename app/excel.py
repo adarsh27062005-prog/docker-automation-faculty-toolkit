@@ -2,6 +2,7 @@ import io
 import re
 from datetime import datetime
 from typing import List, Optional
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -39,13 +40,27 @@ def make_student_filename(roll: Optional[str], docker_id: str) -> str:
     - If roll is present and non-empty: {roll}_{docker_id}_{YYYY-MM-DD}.xlsx (non-alphanumeric in roll replaced by _)
     - If roll is missing/empty: {docker_id}_{YYYY-MM-DD}.xlsx
     """
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(settings.display_tz).strftime("%Y-%m-%d")
     clean_id = sanitize_filename(docker_id)
     if roll and roll.strip() and roll.strip() != "-":
         clean_roll = re.sub(r'[^a-zA-Z0-9]+', '_', roll.strip()).strip('_')
         if clean_roll:
             return f"{clean_roll}_{clean_id}_{today}.xlsx"
     return f"{clean_id}_{today}.xlsx"
+
+def content_disposition(filename: str) -> str:
+    """
+    Builds an attachment Content-Disposition header that is safe for any filename.
+    HTTP headers must be latin-1, so non-ASCII names (e.g. Tamil roster filenames)
+    get an ASCII fallback plus an RFC 5987 UTF-8 `filename*` parameter.
+    """
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii")
+    ascii_name = re.sub(r'[\\"\r\n]', "_", ascii_name).strip() or "download.xlsx"
+    if ascii_name.startswith("."):
+        ascii_name = "download" + ascii_name
+    if ascii_name == filename:
+        return f'attachment; filename="{ascii_name}"'
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename, safe='')}"
 
 def set_safe_cell(cell, value):
     """
@@ -709,7 +724,7 @@ def build_combined_workbook(profiles: List[StudentProfileSummary]) -> Workbook:
             c_earliest.number_format = DATE_FORMAT
         c_earliest.border = THIN_BORDER
 
-        no_push_count = sum(1 for s in p.submissions if s.tags_count == 0 or not s.submission_date)
+        no_push_count = sum(1 for s in p.submissions if s.no_image_pushed)
         ws_students.cell(row=st_row_idx, column=8, value=no_push_count).border = THIN_BORDER
 
         st_row_idx += 1
