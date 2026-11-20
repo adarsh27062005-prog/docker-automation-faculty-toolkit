@@ -49,6 +49,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload   # dev ser
 - Run a **single uvicorn worker**: rosters, jobs and the cache live in process memory.
 - No hardcoded course/batch data (`23CYS`, `20CYS402`, `59`) in `app/`. `docker_id.md` and `IMPLEMENTATION_PLAN.md` are read-only history.
 - Tests must stay offline. Mock `DockerHubClient._fetch`.
+- **The repo is public** (github.com/adarsh27062005-prog/docker-automation-faculty-toolkit). **Never commit real student data** (names, roll numbers, Docker IDs, exports). Samples, tests and docs use synthetic `Demo Student NN` / `DEMO.U4CYS23NNN` / `demo-student-NN`. Real exports stay in git-ignored `scratch/exports/`. README screenshots in `docs/screenshots/` must also use demo data.
 - Git: branch `main`. The user asks before commits. Commit identity comes from the global git config (user chose to keep it).
 
 ## UI theme (Amrita Vishwa Vidyapeetham)
@@ -76,11 +77,13 @@ Taken from amrita.edu campus/school pages (visited with Playwright, 2026-11-19):
 ## Work log
 | Date | Commit | Change |
 |---|---|---|
-| 2026-11-19 | `84a4220` | Baseline: app as handed over from Antigravity (46 tests). |
-| 2026-11-19 | `462c255` | Fixes: failed/partial Docker Hub fetches flagged, not shown as "No image pushed", and not cached; background tasks kept alive; Unicode-safe download filenames; overrides read once per student; IST date in filenames; docs synced. 55 tests. |
+| 2026-11-19 | `b46b8fb` | Baseline: app as handed over from Antigravity (46 tests). |
+| 2026-11-19 | `1b91ab8` | Fixes: failed/partial Docker Hub fetches flagged, not shown as "No image pushed", and not cached; background tasks kept alive; Unicode-safe download filenames; overrides read once per student; IST date in filenames; docs synced. 55 tests. |
 | 2026-11-19 | — | Added user-level Playwright skill; verified upload → skipped rows → single Excel download → mobile layout in a real browser. |
-| 2026-11-19 | `07bcd83` | Added this CLAUDE.md. |
-| 2026-11-19 | `65dee00` | Amrita/IIC branding: logos served from `/static/img`, UI restyled to the amrita.edu theme, mobile card layout for the students table, favicon; `tests/test_branding.py` (58 tests). Verified desktop + 375px in Playwright. |
+| 2026-11-19 | `392aa1b` | Added this CLAUDE.md. |
+| 2026-11-19 | `92f8395` | Amrita/IIC branding: logos served from `/static/img`, UI restyled to the amrita.edu theme, mobile card layout for the students table, favicon; `tests/test_branding.py` (58 tests). Verified desktop + 375px in Playwright. |
 | 2026-11-20 | — | Installed UI/UX Pro Max skill (user level + claude.ai package). Not part of this repo. |
 | 2026-11-20 | — | Installed Frontend Design skill (user level + claude.ai package). Not part of this repo. |
 | 2026-11-20 | — | Installed Impeccable and TasteSkill (user level + claude.ai packages). Not part of this repo. |
+| 2026-11-20 | (all) | History rewritten with `git filter-branch` to replace the 59 real students with synthetic data and drop `scripts/survey_output/`, so commit IDs changed (baseline is now `b46b8fb`). The pre-rewrite history exists only as a local bundle backup. |
+| 2026-11-20 | — | New README (features, screenshots with demo data, quick start, config, architecture, API, security) and push to GitHub. |
