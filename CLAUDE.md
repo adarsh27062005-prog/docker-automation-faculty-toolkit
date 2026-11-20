@@ -17,6 +17,10 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload   # dev ser
 - Browser checks use the user-level Playwright skill (`~/.claude/skills/playwright`). Proven pattern:
   `python <skill>/scripts/with_server.py --server "python -m uvicorn app.main:app --host 127.0.0.1 --port 8765" --port 8765 -- python flow.py`
   Put throwaway flow scripts and screenshots in the scratchpad, not in the repo.
+- UI/design work: the user-level **UI/UX Pro Max** skill (`~/.claude/skills/ui-ux-pro-max`, upstream nextlevelbuilder/ui-ux-pro-max-skill v2.15.0, MIT) is installed. It provides design-system search via `scripts/search.py`. Keep its suggestions inside the Amrita theme below (crimson/yellow, Montserrat); don't let it replace the college branding.
+- The user-level **Frontend Design** skill (`~/.claude/skills/frontend-design`, Anthropic's official anthropics/skills, Apache 2.0) is also installed. Its "distinctive, non-templated" guidance applies inside the fixed Amrita brief: the college theme is the brief, and the skill says the brief's own words always win.
+- **Impeccable** (`~/.claude/skills/impeccable`, pbakaus/impeccable v4.10.0, Apache 2.0) is installed. This app is its **Operate** mode (tools/dashboards: precision and restraint over expression). Its engine binary is downloaded from the project's GitHub releases on first use and has **not** been fetched yet, so ask the user before the first run. Don't enable `/impeccable hooks` without asking.
+- **TasteSkill** (`~/.claude/skills/design-taste-frontend`, Leonxlnx/taste-skill 2.5.1, MIT) is installed. It targets marketing/company websites (one section per screen, real photos, a figma.com/x.ai bar), which is a poor fit for this faculty tool, so don't apply its house rules here unless the user asks. While it's active, a Stop hook runs `gate.mjs`, which only blocks during a TasteSkill build (`.taste-skill/build.json`).
 
 ## Code map
 | File | Role |
@@ -76,4 +80,7 @@ Taken from amrita.edu campus/school pages (visited with Playwright, 2026-11-19):
 | 2026-11-19 | `462c255` | Fixes: failed/partial Docker Hub fetches flagged, not shown as "No image pushed", and not cached; background tasks kept alive; Unicode-safe download filenames; overrides read once per student; IST date in filenames; docs synced. 55 tests. |
 | 2026-11-19 | — | Added user-level Playwright skill; verified upload → skipped rows → single Excel download → mobile layout in a real browser. |
 | 2026-11-19 | `07bcd83` | Added this CLAUDE.md. |
-| 2026-11-19 | — | Amrita/IIC branding: logos served from `/static/img`, UI restyled to the amrita.edu theme, mobile card layout for the students table, favicon; `tests/test_branding.py` (58 tests). Verified desktop + 375px in Playwright. |
+| 2026-11-19 | `65dee00` | Amrita/IIC branding: logos served from `/static/img`, UI restyled to the amrita.edu theme, mobile card layout for the students table, favicon; `tests/test_branding.py` (58 tests). Verified desktop + 375px in Playwright. |
+| 2026-11-20 | — | Installed UI/UX Pro Max skill (user level + claude.ai package). Not part of this repo. |
+| 2026-11-20 | — | Installed Frontend Design skill (user level + claude.ai package). Not part of this repo. |
+| 2026-11-20 | — | Installed Impeccable and TasteSkill (user level + claude.ai packages). Not part of this repo. |
