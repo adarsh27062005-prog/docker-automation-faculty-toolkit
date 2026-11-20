@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Response, UploadFile, File
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.dockerhub import dockerhub_client, StudentProfileSummary
@@ -23,6 +24,9 @@ app = FastAPI(title="Docker Hub Submission Evaluator", version="2.0.0")
 
 STATIC_DIR = Path(__file__).parent / "static"
 INDEX_HTML = STATIC_DIR / "index.html"
+
+# Branding assets (logos). Only the img/ folder is exposed, not the whole static dir.
+app.mount("/static/img", StaticFiles(directory=STATIC_DIR / "img"), name="static-img")
 
 @app.get("/api/health")
 async def health_check():

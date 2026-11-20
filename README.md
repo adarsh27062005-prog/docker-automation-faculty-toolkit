@@ -15,6 +15,7 @@ A web application built with FastAPI and vanilla JavaScript for faculty to evalu
   - Configurable date basis via `SUBMISSION_DATE_BASIS` (`last_push`, `first_push`, or `created`).
 - **Interactive Web Preview Modal:** Live view of a student's repositories, submission timestamps, pull counts, and GitHub links before downloading Excel.
 - **Asynchronous Background Export-All:** For rosters with many students, the combined export runs as a background job with a real-time progress bar, polling updates every 2s and auto-downloading when ready.
+- **College Branding:** Amrita Vishwa Vidyapeetham and Institution's Innovation Council (IIC) logos, with a crimson-and-yellow theme matching amrita.edu. Logo files live in `app/static/img/`.
 - **Formula Injection Protection:** Every cell written to generated Excel workbooks beginning with `=`, `+`, `-`, `@`, `\t`, or `\r` is automatically prefixed with a single quote (`'`) and set to string data type.
 
 ---
@@ -118,4 +119,4 @@ Run the complete test suite completely offline with mocked network calls:
 ```bash
 pytest
 ```
-*All 55 test cases execute in under 10 seconds.*
+*All 58 test cases execute in under 10 seconds.*
