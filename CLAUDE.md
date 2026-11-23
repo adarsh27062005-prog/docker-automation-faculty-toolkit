@@ -9,7 +9,7 @@ Built originally with Antigravity. Its history and design notes are in `antigrav
 
 ## Commands
 ```powershell
-python -m pytest -q                                              # offline test suite (58 tests, ~8 s)
+python -m pytest -q                                              # offline test suite (67 tests, ~8 s)
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload   # dev server -> http://127.0.0.1:8000
 ```
 - **Restart the server after Python changes.** `index.html` is read on every request, so UI edits show up even on a stale server, but routes and fixes don't. A server without `--reload` silently runs old code (on 2026-11-19 an 18:31 server on port 8000 returned 404 for the new logos). Use `--reload` in development.
@@ -52,6 +52,12 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload   # dev ser
 - **The repo is public** (github.com/adarsh27062005-prog/docker-automation-faculty-toolkit). **Never commit real student data** (names, roll numbers, Docker IDs, exports). Samples, tests and docs use synthetic `Demo Student NN` / `DEMO.U4CYS23NNN` / `demo-student-NN`. Real exports stay in git-ignored `scratch/exports/`. README screenshots in `docs/screenshots/` must also use demo data.
 - Git: branch `main`. The user asks before commits. Commit identity comes from the global git config (user chose to keep it).
 
+## Hosting (GitHub only, user's choice: no Render)
+- **Full app:** GitHub Codespaces via `.devcontainer/devcontainer.json` (Python 3.11 image, `pip install --user -r requirements.txt`, auto-starts uvicorn on 8000 and opens the browser). Link: https://codespaces.new/adarsh27062005-prog/docker-automation-faculty-toolkit?quickstart=1
+- **Live demo:** GitHub Pages at https://adarsh27062005-prog.github.io/docker-automation-faculty-toolkit/, built by `.github/workflows/pages.yml` (tests → `scripts/build_pages_demo.py _site` → deploy) on every push to `main`. Pages can't run Python, and Docker Hub sends no CORS headers (browser fetch is blocked), so the demo answers `/api/*` in the browser via `scripts/pages_demo/demo-api.js` with synthetic data and pre-built demo workbooks. It never reads uploaded files.
+- `index.html` must keep working in both: use relative-safe fetch calls; the build rewrites `/static/img/` and `/api/template` and fails loudly if an expected string is missing. Downloads go through `saveResponseAsFile()` (fetch + blob), never `window.location`, so the demo can intercept them.
+- Optional shared login (`BASIC_AUTH_USERNAME`/`BASIC_AUTH_PASSWORD`, middleware in `main.py`) stays available for any public server; it's off by default.
+
 ## UI theme (Amrita Vishwa Vidyapeetham)
 Taken from amrita.edu campus/school pages (visited with Playwright, 2026-11-19):
 - Crimson `#af0c3e` (dark `#8e0a33`, bright `#c8104c`; logo `#b41e49`), accent yellow `#ffd92a` (pill buttons with dark text), soft pink page background `#fdf8f9`, tint `#fbeff3`, headings `#262626`, body grey `#656565`.
@@ -87,3 +93,4 @@ Taken from amrita.edu campus/school pages (visited with Playwright, 2026-11-19):
 | 2026-11-20 | — | Installed Impeccable and TasteSkill (user level + claude.ai packages). Not part of this repo. |
 | 2026-11-20 | (all) | History rewritten with `git filter-branch` to replace the 59 real students with synthetic data and drop `scripts/survey_output/`, so commit IDs changed (baseline is now `b46b8fb`). The pre-rewrite history exists only as a local bundle backup. |
 | 2026-11-20 | — | New README (features, screenshots with demo data, quick start, config, architecture, API, security) and push to GitHub. |
+| 2026-11-23 | — | GitHub-only hosting: Codespaces devcontainer + GitHub Pages demo (Actions workflow, in-browser demo API, demo workbooks). Render config removed. Optional Basic-auth middleware (`tests/test_basic_auth.py`). Export-all download now uses fetch+blob. Fixed `Demo_Student_09` → `Demo Student 09` in the samples. README links now point to the live demo and Codespaces. 67 tests. |

@@ -14,9 +14,20 @@
 <p align="center">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-af0c3e">
   <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.141-af0c3e">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-58%20passing-1e7b45">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-67%20passing-1e7b45">
   <img alt="No database" src="https://img.shields.io/badge/storage-in--memory%20only-ffd92a">
 </p>
+
+<p align="center">
+  <a href="https://adarsh27062005-prog.github.io/docker-automation-faculty-toolkit/"><img alt="Live demo on GitHub Pages" src="https://img.shields.io/badge/Live%20demo-GitHub%20Pages-af0c3e?style=for-the-badge&logo=github"></a>
+  &nbsp;
+  <a href="https://codespaces.new/adarsh27062005-prog/docker-automation-faculty-toolkit?quickstart=1"><img alt="Open in GitHub Codespaces" src="https://github.com/codespaces/badge.svg"></a>
+</p>
+
+| | Link | What you get |
+|---|---|---|
+| **Live demo** | **[adarsh27062005-prog.github.io/docker-automation-faculty-toolkit/](https://adarsh27062005-prog.github.io/docker-automation-faculty-toolkit/)** | The real interface on GitHub Pages with made-up sample data. Always on, nothing to install. |
+| **Full app** | **[Run on GitHub Codespaces](https://codespaces.new/adarsh27062005-prog/docker-automation-faculty-toolkit?quickstart=1)** | The complete working app on GitHub's cloud, with live Docker Hub checks and real Excel reports. Starts in about 1–2 minutes. |
 
 ![Roster view](docs/screenshots/roster.png)
 
@@ -56,7 +67,25 @@ This tool turns that into a two-minute job: **upload the roster, review, downloa
 
 ---
 
-## Quick start
+## Run it on GitHub
+
+### Full app: GitHub Codespaces (recommended)
+
+1. Click **[Run on GitHub Codespaces](https://codespaces.new/adarsh27062005-prog/docker-automation-faculty-toolkit?quickstart=1)** and sign in to GitHub.
+2. Click **Create codespace**. GitHub sets up Python and the dependencies (about 1–2 minutes the first time).
+3. The app starts automatically and opens in a new browser tab. If it doesn't, open the **Ports** tab and click the globe icon next to **Faculty Toolkit (8000)**.
+
+The link and the app are private to your GitHub account by default. Codespaces is free within GitHub's monthly allowance for personal accounts and stops automatically after 30 minutes of inactivity, which clears any uploaded roster. Reopening the same link resumes your codespace.
+
+### Live demo: GitHub Pages
+
+**[adarsh27062005-prog.github.io/docker-automation-faculty-toolkit/](https://adarsh27062005-prog.github.io/docker-automation-faculty-toolkit/)** runs the same interface entirely in the browser with synthetic data. Upload any `.xlsx` to see the workflow: the demo always loads its built-in sample class and never reads your file. Previews, Excel downloads and the class export all work on demo data.
+
+> **Why the demo can't check real students:** GitHub Pages only serves static files, and Docker Hub's API doesn't accept requests from other websites' pages. Real lookups need the app's Python server, which is what Codespaces (or a local run) provides.
+
+The demo is rebuilt and redeployed by GitHub Actions ([`pages.yml`](.github/workflows/pages.yml)) on every push to `main`, after the test suite passes.
+
+## Run it on your own computer
 
 **Requirements:** Python 3.11 or newer.
 
@@ -76,7 +105,7 @@ cp .env.example .env          # optional: adjust settings (Windows: copy .env.ex
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Open **http://127.0.0.1:8000**, click **Download Sample Template**, fill it in (or use the bundled `sample_roster.xlsx`), and upload it.
+Open the address uvicorn prints (`127.0.0.1:8000`), click **Download Sample Template**, fill it in (or use the bundled `sample_roster.xlsx`), and upload it. No installation? Use the **[live demo](https://adarsh27062005-prog.github.io/docker-automation-faculty-toolkit/)** or **[Codespaces](https://codespaces.new/adarsh27062005-prog/docker-automation-faculty-toolkit?quickstart=1)** instead.
 
 > Run a **single** server process (no `--workers N`): rosters, export jobs and the cache are kept in that process's memory. Restarting the server clears them, so faculty simply upload the roster again.
 
@@ -160,17 +189,6 @@ flowchart LR
 - **No open proxy.** Docker Hub is only queried for IDs that exist in an uploaded roster. Roster and job IDs are random 128-bit tokens.
 - **Optional shared login.** Set `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` and every page, file and API call requires that login (only `/api/health` stays open for the host's health checks). There are no individual user accounts.
 
-## Deploy your own copy (Render, free)
-
-The repo includes a [`render.yaml`](render.yaml) Blueprint, so Render can build and host it straight from GitHub and redeploy on every push.
-
-1. Sign in at [render.com](https://render.com) with your GitHub account.
-2. **New → Blueprint**, pick this repository, and confirm.
-3. When asked, enter a `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` for faculty (or leave both empty for an open site).
-4. Wait for the first build (about 2–3 minutes), then open the `onrender.com` link Render shows.
-
-The free plan sleeps after 15 minutes without visitors, so the first visit after a pause takes about 30–60 seconds to wake up, and uploaded rosters are cleared when it sleeps.
-
 **Campus deployment:** run `uvicorn app.main:app --host 0.0.0.0 --port 8000`, allow the port through the firewall, and share `http://<server-ip>:8000` with faculty. On Windows Server:
 
 ```powershell
@@ -183,7 +201,7 @@ New-NetFirewallRule -DisplayName "Docker Submission Evaluator" -Direction Inboun
 pytest
 ```
 
-58 tests run fully offline in under 10 seconds. Docker Hub is mocked, covering roster parsing edge cases, pagination, rate-limit and failure handling, date logic, Excel structure, formula-injection protection, routes, background jobs and branding assets.
+67 tests run fully offline in under 10 seconds. Docker Hub is mocked, covering roster parsing edge cases, pagination, rate-limit and failure handling, date logic, Excel structure, formula-injection protection, routes, background jobs, branding assets and the optional login.
 
 ## Project structure
 
@@ -199,6 +217,9 @@ app/
 ├── config.py         Settings from environment
 └── static/           Web interface and logos
 tests/                Offline test suite
+.devcontainer/        GitHub Codespaces setup (starts the app automatically)
+.github/workflows/    Builds and deploys the GitHub Pages demo
+scripts/build_pages_demo.py, scripts/pages_demo/   Static demo builder and its in-browser API
 docs/screenshots/     README images (demo data)
 scripts/, scratch/    Development and verification helpers
 sample_roster.xlsx    59-student demo roster

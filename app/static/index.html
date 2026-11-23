@@ -1090,22 +1090,7 @@
           throw new Error(errData.detail || 'Failed to download Excel file');
         }
 
-        const blob = await res.blob();
-        let filename = `${dockerId}.xlsx`;
-        const disp = res.headers.get('Content-Disposition');
-        if (disp && disp.includes('filename=')) {
-          const match = disp.match(/filename="?([^"]+)"?/);
-          if (match && match[1]) filename = match[1];
-        }
-
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
+        const filename = await saveResponseAsFile(res, `${dockerId}.xlsx`);
         showToast(`Downloaded ${filename}`, 'success');
       } catch (err) {
         showToast(`Export failed: ${err.message}`, 'error');
@@ -1115,6 +1100,39 @@
           btn.innerHTML = origText;
         }
       }
+    }
+
+    // Saves a fetch() response as a file, using the server's filename when given
+    // (RFC 5987 filename* first, then plain filename). Returns the name used.
+    async function saveResponseAsFile(res, fallbackName) {
+      const blob = await res.blob();
+      let filename = fallbackName;
+      const disp = res.headers.get('Content-Disposition') || '';
+      const star = disp.match(/filename\*=UTF-8''([^;]+)/i);
+      const plain = disp.match(/filename="?([^";]+)"?/i);
+      if (star) {
+        try { filename = decodeURIComponent(star[1]); } catch (e) { /* keep fallback */ }
+      } else if (plain && plain[1]) {
+        filename = plain[1];
+      }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+      return filename;
+    }
+
+    async function downloadJobResult(jobId) {
+      const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/download`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Could not download the report');
+      }
+      return saveResponseAsFile(res, 'All_Submissions.xlsx');
     }
 
     async function startExportAll() {
@@ -1175,10 +1193,12 @@
           if (job.status === 'done') {
             stopExportPolling();
             document.getElementById('export-status-label').textContent = 'Export completed! Downloading file...';
-            showToast('Export complete. Downloading Excel report...', 'success');
-            
-            // Trigger download
-            window.location.href = `/api/jobs/${activeJobId}/download`;
+            try {
+              const name = await downloadJobResult(activeJobId);
+              showToast(`Downloaded ${name}`, 'success');
+            } catch (dlErr) {
+              showToast(`Download failed: ${dlErr.message}`, 'error');
+            }
 
             setTimeout(() => {
               document.getElementById('export-progress-panel').style.display = 'none';

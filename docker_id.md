@@ -13,7 +13,7 @@
 | DEMO.U4CYS23008 | Demo Student 06 With Four Extra Words Here   | [demo-student-06](https://hub.docker.com/r/demo-student-06) |
 | DEMO.U4CYS23009 | Demo Student 07            | [demo-student-07](https://hub.docker.com/r/demo-student-07) |
 | DEMO.U4CYS23010 | Demo Student 08              | [demo-student-08](https://hub.docker.com/r/demo-student-08) |
-| DEMO.U4CYS23011 | Demo_Student_09                     | [demo-student-09](https://hub.docker.com/r/demo-student-09) |
+| DEMO.U4CYS23011 | Demo Student 09                     | [demo-student-09](https://hub.docker.com/r/demo-student-09) |
 | DEMO.U4CYS23012 | Demo Student 10                | [demo-student-10](https://hub.docker.com/r/demo-student-10) |
 | DEMO.U4CYS23013 | Demo Student 11                      | [demo-student-11](https://hub.docker.com/r/demo-student-11) |
 | DEMO.U4CYS23014 | Demo Student 12                    | [demo-student-12](https://hub.docker.com/r/demo-student-12) |  

@@ -1,0 +1,28 @@
+{
+  // Runs the full Faculty Toolkit on GitHub Codespaces: one click from the README.
+  "name": "Docker Hub Submission Evaluator",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+
+  // Install the pinned dependencies once, when the codespace is created.
+  "postCreateCommand": "pip install --user -r requirements.txt",
+
+  // Start the app every time the codespace opens (single process: state is in memory).
+  "postAttachCommand": "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "Faculty Toolkit",
+      "onAutoForward": "openBrowser"
+    }
+  },
+
+  "customizations": {
+    "codespaces": {
+      "openFiles": ["README.md"]
+    },
+    "vscode": {
+      "extensions": ["ms-python.python"]
+    }
+  }
+}

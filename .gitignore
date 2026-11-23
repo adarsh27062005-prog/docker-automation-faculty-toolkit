@@ -16,3 +16,4 @@ scratch/exports/
 .idea/
 Thumbs.db
 .DS_Store
+_site/
