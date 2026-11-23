@@ -110,6 +110,7 @@ Set these in `.env` (see [`.env.example`](.env.example)). All are optional.
 | `GITHUB_README_LOOKUP` | `false` | Also scan each repo's README for linked GitHub URLs (slower). |
 | `OVERRIDES_FILE` | `overrides.csv` | Optional `docker_id,github_url` mapping for manual GitHub links. |
 | `GITHUB_TOKEN` | *(unset)* | Reserved for GitHub metadata enrichment; not used yet. |
+| `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` | *(unset)* | Shared faculty login for a public deployment. Required only when **both** are set. Set them on the host, never in the repo. |
 
 ---
 
@@ -157,7 +158,18 @@ flowchart LR
 - **Nothing is stored on disk.** Uploaded rosters and generated reports exist only in memory and expire automatically.
 - **Formula-injection safe.** Any cell text starting with `=`, `+`, `-`, `@`, tab or carriage return is written as plain text.
 - **No open proxy.** Docker Hub is only queried for IDs that exist in an uploaded roster. Roster and job IDs are random 128-bit tokens.
-- **No accounts or authentication.** Intended for a trusted campus network or VPN. If you expose it beyond that, put it behind a reverse proxy (Caddy or Nginx) with HTTPS and basic authentication.
+- **Optional shared login.** Set `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` and every page, file and API call requires that login (only `/api/health` stays open for the host's health checks). There are no individual user accounts.
+
+## Deploy your own copy (Render, free)
+
+The repo includes a [`render.yaml`](render.yaml) Blueprint, so Render can build and host it straight from GitHub and redeploy on every push.
+
+1. Sign in at [render.com](https://render.com) with your GitHub account.
+2. **New → Blueprint**, pick this repository, and confirm.
+3. When asked, enter a `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` for faculty (or leave both empty for an open site).
+4. Wait for the first build (about 2–3 minutes), then open the `onrender.com` link Render shows.
+
+The free plan sleeps after 15 minutes without visitors, so the first visit after a pause takes about 30–60 seconds to wake up, and uploaded rosters are cleared when it sleeps.
 
 **Campus deployment:** run `uvicorn app.main:app --host 0.0.0.0 --port 8000`, allow the port through the firewall, and share `http://<server-ip>:8000` with faculty. On Windows Server:
 

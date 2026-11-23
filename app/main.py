@@ -1,5 +1,8 @@
 import asyncio
+import base64
+import binascii
 import logging
+import secrets
 from pathlib import Path
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Response, UploadFile, File
@@ -21,6 +24,63 @@ from app.jobs import job_manager
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Docker Hub Submission Evaluator", version="2.0.0")
+
+# Paths reachable without the shared login (host health checks).
+AUTH_EXEMPT_PATHS = {"/api/health"}
+
+
+class BasicAuthMiddleware:
+    """Optional shared login for public hosting (HTTP Basic auth).
+
+    Active only when BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD are both set, so
+    local runs and the test suite stay open. Browsers show their own login prompt
+    and then resend the credentials on every same-origin request, including the
+    page's fetch() calls and file downloads.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if (
+            scope["type"] != "http"
+            or not settings.basic_auth_enabled
+            or scope.get("path") in AUTH_EXEMPT_PATHS
+        ):
+            await self.app(scope, receive, send)
+            return
+
+        if self._authorized(dict(scope.get("headers") or [])):
+            await self.app(scope, receive, send)
+            return
+
+        response = Response(
+            content="Authentication required.",
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="Faculty Toolkit", charset="UTF-8"'},
+            media_type="text/plain",
+        )
+        await response(scope, receive, send)
+
+    @staticmethod
+    def _authorized(headers: dict) -> bool:
+        raw = headers.get(b"authorization", b"").decode("latin-1")
+        scheme, _, encoded = raw.partition(" ")
+        if scheme.lower() != "basic" or not encoded:
+            return False
+        try:
+            user, sep, password = base64.b64decode(encoded, validate=True).decode("utf-8").partition(":")
+        except (binascii.Error, UnicodeDecodeError):
+            return False
+        if not sep:
+            return False
+        # Compare both fields in constant time; evaluate both to avoid leaking which one failed.
+        user_ok = secrets.compare_digest(user.encode("utf-8"), settings.BASIC_AUTH_USERNAME.encode("utf-8"))
+        pass_ok = secrets.compare_digest(password.encode("utf-8"), settings.BASIC_AUTH_PASSWORD.encode("utf-8"))
+        return user_ok and pass_ok
+
+
+app.add_middleware(BasicAuthMiddleware)
 
 STATIC_DIR = Path(__file__).parent / "static"
 INDEX_HTML = STATIC_DIR / "index.html"

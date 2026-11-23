@@ -24,6 +24,15 @@ class Settings:
     JOB_TTL_HOURS: int = int(os.environ.get("JOB_TTL_HOURS", "2"))
     GITHUB_README_LOOKUP: bool = os.environ.get("GITHUB_README_LOOKUP", "false").strip().lower() in ("true", "1", "yes")
 
+    # Optional shared login for public hosting. Protection is on only when BOTH are set;
+    # set them in the host's dashboard, never in the repository.
+    BASIC_AUTH_USERNAME: str = os.environ.get("BASIC_AUTH_USERNAME", "").strip()
+    BASIC_AUTH_PASSWORD: str = os.environ.get("BASIC_AUTH_PASSWORD", "")
+
+    @property
+    def basic_auth_enabled(self) -> bool:
+        return bool(self.BASIC_AUTH_USERNAME and self.BASIC_AUTH_PASSWORD)
+
     @property
     def display_tz(self) -> ZoneInfo:
         try:

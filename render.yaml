@@ -1,0 +1,29 @@
+# Render Blueprint: deploys this repo as a free Python web service.
+# Render rebuilds and redeploys automatically on every push to `main`.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: docker-automation-faculty-toolkit
+    runtime: python
+    plan: free
+    region: singapore            # closest Render region to India
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    # One process only: rosters, export jobs and the cache live in memory.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DISPLAY_TZ
+        value: Asia/Kolkata
+      - key: SUBMISSION_DATE_BASIS
+        value: last_push
+      # Shared faculty login. Render asks for these when the Blueprint is created;
+      # they are stored only on Render, never in this repository.
+      # Leave both empty to run the site without a password.
+      - key: BASIC_AUTH_USERNAME
+        sync: false
+      - key: BASIC_AUTH_PASSWORD
+        sync: false
