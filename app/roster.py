@@ -50,6 +50,9 @@ class Roster:
     warnings: List[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_accessed: float = field(default_factory=time.time)
+    # Repo selections, scores and the rubric (app.evaluation.RosterScoring).
+    # Lives and expires with the roster, in memory only.
+    scoring: Any = None
 
     def __post_init__(self):
         if not self.students_by_id and self.students:

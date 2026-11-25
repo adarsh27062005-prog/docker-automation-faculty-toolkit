@@ -9,7 +9,7 @@ Built originally with Antigravity. Its history and design notes are in `antigrav
 
 ## Commands
 ```powershell
-python -m pytest -q                                              # offline test suite (67 tests, ~8 s)
+python -m pytest -q                                              # offline test suite (98 tests, ~10 s)
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload   # dev server -> http://127.0.0.1:8000
 ```
 - **Restart the server after Python changes.** `index.html` is read on every request, so UI edits show up even on a stale server, but routes and fixes don't. A server without `--reload` silently runs old code (on 2026-11-19 an 18:31 server on port 8000 returned 404 for the new logos). Use `--reload` in development.
@@ -27,9 +27,12 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload   # dev ser
 |---|---|
 | `app/main.py` | FastAPI routes (roster upload, preview, single export, export-all job start/poll/download, template, health) |
 | `app/roster.py` | In-memory `.xlsx` roster parsing (header aliases, URL→ID normalisation, skip reasons) + `RosterStore` (LRU 50, TTL 12 h) |
-| `app/dockerhub.py` | Async Docker Hub client: pagination, retries/backoff, submission-date basis, `data_incomplete` flagging, caching rules |
+| `app/dockerhub.py` | Async Docker Hub client: pagination, retries/backoff, submission-date basis, `data_incomplete` flagging, caching rules, `x-ratelimit-*` pacing, `get_repo_facts` (README, tag images, official base steps cached 24 h) |
 | `app/excel.py` | Workbook builders (single, combined, template), `set_safe_cell` formula-injection guard, `content_disposition` |
-| `app/jobs.py` | Background export-all jobs (2 students at a time, results kept 2 h, strong task refs) |
+| `app/jobs.py` | Background jobs, 2 students at a time, kept 2 h, strong task refs: `export` (class workbook) and `evaluate` (score the class with a selection rule) |
+| `app/layers.py` | Image step lists from the Hub `tags/{tag}/images` endpoint; `split_base` separates the student's own steps from the official base image (signature ENV + prefix match) |
+| `app/scoring.py` | Rubric (20 checks, 100 pts, editable) and `score_repo(facts, rubric)`: pure, evidence per check, flags, penalties, half-up rounding |
+| `app/evaluation.py` | Per-roster scoring state on `Roster.scoring`: selections (repo/tag/weight/deadline), results + stored facts (rubric edits rescore without refetch), overrides, class flags (F1 copies) |
 | `app/cache.py` | Process-local TTL cache (15 min) for student profiles |
 | `app/github_links.py` | GitHub URL discovery (overrides.csv → README → description). `enrich_github_repo` exists but is **not called** |
 | `app/config.py` | Env-var settings (see `.env.example`) |
@@ -48,7 +51,9 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload   # dev ser
 - Docker Hub politeness: keep the semaphore (3 requests) and backoff; don't raise concurrency without testing against rate limits.
 - Run a **single uvicorn worker**: rosters, jobs and the cache live in process memory.
 - No hardcoded course/batch data (`23CYS`, `20CYS402`, `59`) in `app/`. `docker_id.md` and `IMPLEMENTATION_PLAN.md` are read-only history.
-- Tests must stay offline. Mock `DockerHubClient._fetch`.
+- Tests must stay offline. Mock `DockerHubClient._fetch` (or `get_student_profile` / `get_repo_facts` for route tests). Tests that wait on background jobs need `with TestClient(app)` (a bare TestClient runs a new event loop per request).
+- **Scoring never pulls or runs images** and reads only the Hub API (the registry allows 100 anonymous pulls/h per IP). Repo and tag names must come from the student's own Docker Hub listing. A Docker Hub error means *Needs re-check* (`score=None`), never 0.
+- Keep `scripts/pages_demo/demo-api.js` in step with `app/scoring.py` / `app/evaluation.py` arithmetic: the demo build checks nothing automatically, so re-run the parity flow (JS scores vs the Python Marks sheet) after changing scoring maths.
 - **The repo is public** (github.com/adarsh27062005-prog/docker-automation-faculty-toolkit). **Never commit real student data** (names, roll numbers, Docker IDs, exports). Samples, tests and docs use synthetic `Demo Student NN` / `DEMO.U4CYS23NNN` / `demo-student-NN`. Real exports stay in git-ignored `scratch/exports/`. README screenshots in `docs/screenshots/` must also use demo data.
 - Git: branch `main`. The user asks before commits. Commit identity comes from the global git config (user chose to keep it).
 - **Revert point: tag `v1.0`** (`3e426a0`, pushed to GitHub) is the web app as it was before the scoring upgrade. Upgrade work happens on branch **`feature/repo-scoring`**; `main` (and so the live Pages demo, which deploys on every push to `main`) stays at `v1.0` until the user approves the upgrade. Not approved → `git switch main` and delete the branch. Already merged and must undo → `git revert` the merge, or ask before any `reset --hard v1.0` + force-push.
@@ -74,8 +79,9 @@ Taken from amrita.edu campus/school pages (visited with Playwright, 2026-11-19):
 - `IMPLEMENTATION_PLAN.md`: original spec (historical).
 
 ## Open items
-- **Next upgrade: repo selection + scoring.** Faculty pick any number of repos per student; each is scored 0–100 against an editable, domain-agnostic rubric (submission, docs, build practices from layer instructions, versioning, lean image) and the student score is a weighted average that faculty can override. Plan and decisions: `docs/plans/repo-scoring.md`. **Phase 1 done** (official-base prefix match separates the student's own steps from the base, 15/15 public images; Hub API only, because the registry allows just 100 anonymous pulls/h per IP). Next: Phase 2, scoring engine `app/scoring.py`, on branch `feature/repo-scoring`.
-- `SUBMISSION_DEADLINE` is env-only today, so faculty on the web page or Codespaces can't set it. The scoring rubric panel replaces this.
+- **Repo selection + scoring is built on branch `feature/repo-scoring` and waits for the user's approval.** Approved → merge into `main` and push (that deploys the Pages demo). Not approved → `main`/live demo stay at tag `v1.0`. Plan, spike and decisions: `docs/plans/repo-scoring.md`.
+- Scoring ideas not built: persisting scores across server restarts (re-import a Marks sheet), per-assignment rubric presets, GitHub source analysis.
+- The old env-only `SUBMISSION_DEADLINE` still drives the "On time / Late" column of the original Repositories sheet; the scoring rubric has its own deadline set on the page.
 - Montserrat is not bundled locally (offline campus machines fall back to system fonts).
 - Excel reports still use the old blue header fill (`1F4E78`), not the crimson theme.
 - `GITHUB_TOKEN` has no effect: GitHub enrichment is not wired in.
@@ -98,4 +104,5 @@ Taken from amrita.edu campus/school pages (visited with Playwright, 2026-11-19):
 | 2026-11-23 | `05ca268` | GitHub-only hosting: Codespaces devcontainer + GitHub Pages demo (Actions workflow, in-browser demo API, demo workbooks). Render config removed. Optional Basic-auth middleware (`tests/test_basic_auth.py`). Export-all download now uses fetch+blob. Fixed `Demo_Student_09` → `Demo Student 09` in the samples. README links now point to the live demo and Codespaces. 67 tests. |
 | 2026-11-23 | `3e426a0` | Pages enabled (source: GitHub Actions); first deploy succeeded. Live demo verified in a real browser (upload, preview, single + combined Excel, mobile, no console errors). |
 | 2026-11-26 | — | Drafted the repo selection + scoring plan with the user (`docs/plans/repo-scoring.md`). Confirmed the Hub API `tags/{tag}/images` endpoint returns per-layer Dockerfile instructions without using pull quota. |
-| 2026-11-26 | — | Tagged `v1.0` (= `3e426a0`, pushed) as the revert point; upgrade work moved to branch `feature/repo-scoring`. Phase 1 spike: `scripts/spike_layer_split.py`; results and rubric changes recorded in the plan. |
+| 2026-11-26 | `7112baf` | Tagged `v1.0` (= `3e426a0`, pushed) as the revert point; upgrade work moved to branch `feature/repo-scoring`. Phase 1 spike: `scripts/spike_layer_split.py`; results and rubric changes recorded in the plan. |
+| 2026-11-26 | (branch) | Repo selection + scoring, phases 2-6: `app/layers.py`, `app/scoring.py`, `app/evaluation.py`, scoring routes, evaluate-all job, rate-limit pacing, Scoring panel / Score column / repo picker + breakdown + overrides in the UI, Score/Marks/Repo scores Excel sheets, Pages demo with synthetic scored images (JS vs Python parity 59/59). Verified in a browser on live Docker Hub (public orgs) and on the demo, desktop + 375 px. 98 tests. |

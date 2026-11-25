@@ -1,6 +1,6 @@
 # Plan: repo selection and scoring
 
-Status: **draft**, agreed with the user on 2026-11-26. **Phase 1 (spike) done**; see "Spike results". Phases 2 to 6 are not built yet.
+Status: **built** on branch `feature/repo-scoring` (2026-11-26), waiting for the user's approval. Phase 1 spike results are below; phases 2-6 are done.
 
 Work happens on branch `feature/repo-scoring`. Tag **`v1.0`** marks the web app before this upgrade. If the upgrade isn't approved, `main` and the live demo stay at `v1.0`.
 
@@ -183,11 +183,16 @@ Every route looks up the student in the roster first, and repo names must come f
 | # | Phase | Done when |
 |---|---|---|
 | 1 | **Spike**: base-vs-own step split, pull-quota cost, README and layer fetch | ✅ Done 2026-11-26: official-base prefix match, 15/15; Hub API only |
-| 2 | **Scoring engine** `app/scoring.py`: pure functions over fetched data, rubric model, redistribution, penalties, flags | Offline tests with fixture layer lists for every check |
-| 3 | **Fetching and API**: repo detail and tag images in `dockerhub.py`, selection, auto-select, evaluate, evaluate-all job, override | Offline API tests (mocked `_fetch`), roster look-up enforced |
-| 4 | **UI**: rubric panel, repo picker, breakdown, override, table columns and filter | Browser check at desktop and 375 px, no console errors |
-| 5 | **Excel**: Score sheet, Marks and Repo scores sheets | Workbooks open; formula guard covered by tests |
-| 6 | **Demo and docs**: Pages demo data, README, CLAUDE.md, `antigravity.md` §10 | Pages build passes; live demo works end to end |
+| 2 | **Scoring engine** `app/scoring.py` + `app/layers.py` | ✅ `tests/test_scoring.py` (21 tests) |
+| 3 | **Fetching and API**: `get_repo_facts`, `app/evaluation.py`, routes, evaluate-all job, `x-ratelimit-*` pacing | ✅ `tests/test_evaluation_api.py` (10 tests) |
+| 4 | **UI**: Scoring panel (rule + Evaluate all), editable rubric, Score column + status filter, repo picker with tag/weight/deadline, breakdown with evidence, overrides | ✅ Browser check on live Docker Hub (public orgs), desktop + 375 px, no console errors |
+| 5 | **Excel**: Score sheet (single), Marks + Repo scores sheets (combined) | ✅ |
+| 6 | **Demo and docs**: synthetic scored images in the Pages demo, README, CLAUDE.md, `antigravity.md` §10 | ✅ JS vs Python parity on all 59 demo students |
+
+**Changes made while building**
+- A partly loaded tag list (huge repos, Docker Hub stops paging) is still scored, with a note that versioning checks used the tags that loaded. No tag data at all is still *Needs re-check*.
+- Scores round halves up (66.25 → 66.3), the same in Python and in the demo's JavaScript.
+- Without a tag choice, the tag scored is the last one pushed before the deadline (if any), else the most recent push.
 
 ## Out of scope for v1
 
@@ -195,8 +200,8 @@ Every route looks up the student in the roster first, and repo names must come f
 - Persisting sessions across server restarts.
 - Analysing the GitHub source (`GITHUB_TOKEN` enrichment stays unwired).
 
-## Open questions (decide during the build)
+## Open questions: defaults chosen during the build (faculty can change them)
 
-- Late policy: is losing S2's 10 points enough, or should a late repo also lose a percentage of its total?
-- Is 500 MB / 1 GB a fair default for L2?
-- Should a flag such as F1 (possible copy) block the suggested score until faculty review it, or only show a warning?
+- Late policy: a late repo loses S2's points; an extra **late penalty %** exists in the rubric panel, default 0.
+- L2 size limit: **500 MB** compressed (half points up to 1 GB), editable in the rubric panel.
+- F1 (possible copy) **only warns**; the suggested score stands until faculty override it.

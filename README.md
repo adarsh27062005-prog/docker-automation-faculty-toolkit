@@ -14,7 +14,7 @@
 <p align="center">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-af0c3e">
   <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.141-af0c3e">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-67%20passing-1e7b45">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-98%20passing-1e7b45">
   <img alt="No database" src="https://img.shields.io/badge/storage-in--memory%20only-ffd92a">
 </p>
 
@@ -53,7 +53,8 @@ This tool turns that into a two-minute job: **upload the roster, review, downloa
 | **Trustworthy submission dates** | The submission date is the latest tag push (configurable to first push or repo creation), shown in IST. Repos with no image are marked **"No image pushed"**. |
 | **Honest about failures** | If Docker Hub rate-limits or errors mid-fetch, the repo is flagged "Tag data unavailable – re-check later" instead of being misreported as empty, and partial results are never cached. |
 | **Quick preview** | See a student's repositories, dates and pull counts in a pop-up before downloading anything. |
-| **Excel reports** | A per-student workbook (Repositories, Summary, Tags, Notes) or one combined workbook for the whole class, built in the background with a progress bar. Optional On time / Late column against a deadline. |
+| **Repo scoring (out of 100)** | Faculty choose which of a student's repositories to evaluate (any number, with a tag, weight and optional own deadline each), or score the whole class with one rule. Each repo is scored against a general, domain-agnostic rubric from what Docker Hub shows: build practices, documentation, versioning and image size. Every check shows its evidence, faculty can edit the rubric and override any score, and the marks go into Excel. See [How scoring works](#how-scoring-works). |
+| **Excel reports** | A per-student workbook (Repositories, Score, Summary, Tags, Notes) or one combined workbook for the whole class (Marks, Repo scores, All Submissions, Student Summary), built in the background with a progress bar. |
 | **Safe by design** | Uploads and reports live only in memory and are never written to disk. Every Excel cell is protected against formula injection. Students can only be looked up through an uploaded roster. |
 | **College theme** | Amrita crimson-and-yellow branding with the Amrita and IIC logos. Fully usable on phones: the student table becomes stacked cards. |
 
@@ -166,6 +167,27 @@ flowchart LR
 3. **Decide the date:** the submission date is computed per repo from the tag push times. Missing or failed data is labelled, never guessed.
 4. **Report:** results are shown in the browser or written to Excel. The class export runs as a background job that the page polls every 2 seconds.
 
+### How scoring works
+
+Scoring never pulls or runs a student's image. It reads what Docker Hub already shows for the chosen tag: the image's **build steps** (Docker Hub lists the Dockerfile instruction behind every layer), the repository's README and description, its tags and the image size.
+
+1. **Separate the student's work from the base image.** The step list starts with the base image's own steps (for example `python:3.11-slim` already sets a `CMD`). Official images leave a fingerprint (`PYTHON_VERSION`, `NGINX_VERSION`, …), so the app fetches that official image's steps and strips them off. What is left is the student's own work. Plain re-tags of someone else's image are detected and get no build points. Images built `FROM ubuntu`/`alpine`/`debian` or `FROM scratch` are handled too, and the confidence of the split is shown.
+2. **Run the rubric.** 20 checks, 100 points by default:
+
+   | Area | Points | Checks |
+   |---|---|---|
+   | Submission | 20 | Image pushed (no image: the repo scores 0), pushed on time |
+   | Documentation | 20 | Short description, README present, README shows how to run it, README structure |
+   | Build practices | 40 | Start command, non-root user, health check, port declared, package caches cleaned, `RUN` steps combined, `WORKDIR`, labels, `COPY` rather than `ADD` |
+   | Versioning | 10 | Version tag besides `latest`, pushed more than once, multi-architecture |
+   | Lean image | 10 | Minimal base image (alpine/slim/distroless/scratch), size within the limit |
+
+   Secret-looking values baked into the image (`PASSWORD=`, `TOKEN=`, AWS keys, …) cost 10 points; only the variable name is shown, never the value.
+3. **Scale and combine.** Checks that don't apply (no deadline set, nothing installed) are skipped and their points shared out, so every repo is out of 100. A student's score is the weighted average of their selected repos.
+4. **Flag, don't guess.** Possible copies (the same image as another student), re-tags, late pushes and secrets are flagged for faculty to look at. A Docker Hub error gives *Needs re-check*, never a fake score.
+
+Faculty stay in charge: the **Rubric** panel switches checks on and off, changes their points, and sets the class deadline, the late penalty and the size limit (saving rescores everyone instantly, without fetching again). Any repo or student score can be overridden with a note, and the Marks sheet keeps both the suggested and the final score. Scores, like rosters, live in memory for 12 hours; the exported Marks sheet is the record. Details and the design notes are in [`docs/plans/repo-scoring.md`](docs/plans/repo-scoring.md).
+
 ### API
 
 | Method | Endpoint | Purpose |
@@ -181,6 +203,12 @@ flowchart LR
 | `POST` | `/api/roster/{roster_id}/export-all/start` | Start the class export job |
 | `GET` | `/api/jobs/{job_id}` | Job progress |
 | `GET` | `/api/jobs/{job_id}/download` | Download the finished class workbook (`409` while still running) |
+| `GET` / `PUT` / `DELETE` | `/api/roster/{roster_id}/rubric` | Read, edit or reset the scoring rubric (edits rescore stored results) |
+| `GET` | `/api/roster/{roster_id}/scores` | Score summary for every student |
+| `GET` | `/api/roster/{roster_id}/students/{docker_id}/evaluation` | Selected repos, per-check results and overrides |
+| `POST` | `/api/roster/{roster_id}/students/{docker_id}/evaluate` | Select repos (`{"repos": [{"repo", "tag", "weight", "deadline"}]}`) and score them |
+| `PUT` | `/api/roster/{roster_id}/students/{docker_id}/override` | Override a repo or student score (`{"repo"?, "score", "note"}`) |
+| `POST` | `/api/roster/{roster_id}/evaluate-all/start` | Score the class in the background (`{"rule", "text", "overwrite"}`) |
 
 ## Security and privacy
 
@@ -201,7 +229,7 @@ New-NetFirewallRule -DisplayName "Docker Submission Evaluator" -Direction Inboun
 pytest
 ```
 
-67 tests run fully offline in under 10 seconds. Docker Hub is mocked, covering roster parsing edge cases, pagination, rate-limit and failure handling, date logic, Excel structure, formula-injection protection, routes, background jobs, branding assets and the optional login.
+98 tests run fully offline in about 10 seconds. Docker Hub is mocked, covering roster parsing edge cases, pagination, rate-limit and failure handling, date logic, Excel structure, formula-injection protection, routes, background jobs, branding assets, the optional login, and scoring: the base-image split, every rubric check, penalties, rubric validation, repo selection, overrides and the score exports.
 
 ## Project structure
 
@@ -209,9 +237,12 @@ pytest
 app/
 ├── main.py           FastAPI routes
 ├── roster.py         Roster parsing and in-memory store
-├── dockerhub.py      Docker Hub client (pagination, retries, date logic)
+├── dockerhub.py      Docker Hub client (pagination, retries, date logic, rate-limit pacing)
+├── layers.py         Image step lists; separating the student's steps from the base image
+├── scoring.py        Rubric and the 20 domain-agnostic checks (pure functions)
+├── evaluation.py     Repo selection, scores, overrides and flags per roster
 ├── excel.py          Workbook builders and formula-injection guard
-├── jobs.py           Background class export
+├── jobs.py           Background class export and class scoring
 ├── cache.py          In-memory TTL cache
 ├── github_links.py   GitHub URL discovery
 ├── config.py         Settings from environment
@@ -221,6 +252,7 @@ tests/                Offline test suite
 .github/workflows/    Builds and deploys the GitHub Pages demo
 scripts/build_pages_demo.py, scripts/pages_demo/   Static demo builder and its in-browser API
 docs/screenshots/     README images (demo data)
+docs/plans/           Design notes (repo-scoring.md: scoring plan and spike results)
 scripts/, scratch/    Development and verification helpers
 sample_roster.xlsx    59-student demo roster
 sample_messy.xlsx     Demo roster with deliberate errors

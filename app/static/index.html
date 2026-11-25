@@ -472,8 +472,8 @@
       border-radius: 14px;
       border-top: 5px solid var(--crimson);
       width: 100%;
-      max-width: 820px;
-      max-height: 85vh;
+      max-width: 980px;
+      max-height: 88vh;
       display: flex;
       flex-direction: column;
       padding: 22px 24px;
@@ -516,6 +516,72 @@
     .modal-table th, .modal-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
     .modal-table th { position: sticky; top: 0; z-index: 2; }
 
+    /* Scoring */
+    .scoring-panel { margin-bottom: 26px; }
+    .score-actions {
+      display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end;
+      background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px;
+    }
+    .field { display: flex; flex-direction: column; gap: 4px; font-size: 0.74rem; font-weight: 700; color: var(--crimson-dark); letter-spacing: 0.02em; }
+    .field select, .field input, .num-input, .note-input, .status-select {
+      padding: 8px 10px; border: 1px solid #e3c6cf; border-radius: 8px; font: inherit; font-size: 0.86rem;
+      font-weight: 500; background: #fff; color: var(--text); min-height: 38px;
+    }
+    .field select:focus, .field input:focus, .num-input:focus, .note-input:focus, .status-select:focus { outline: none; border-color: var(--crimson); box-shadow: 0 0 0 3px rgba(175,12,62,0.12); }
+    .num-input { width: 84px; }
+    .note-input { flex: 1; min-width: 180px; }
+    .check-label { display: flex; gap: 8px; align-items: center; font-size: 0.84rem; min-height: 38px; cursor: pointer; }
+    .check-label input, .modal-table input[type=checkbox], .rubric-table input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--crimson); cursor: pointer; }
+    .rubric-box { margin-top: 12px; background: #fff; border: 1px solid var(--border); border-radius: 12px; }
+    .rubric-box > summary { cursor: pointer; padding: 13px 18px; font-weight: 700; color: var(--crimson); font-size: 0.92rem; }
+    .rubric-box > summary span { font-weight: 500; color: var(--text-muted); font-size: 0.84rem; }
+    .rubric-inner { padding: 0 18px 18px; }
+    .rubric-settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 14px; }
+    .rubric-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    .rubric-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .rubric-table .area-row td { background: var(--pink-tint); color: var(--crimson-dark); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; }
+    .check-help { display: block; font-size: 0.76rem; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
+    .rubric-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; font-size: 0.84rem; }
+    .rubric-foot .btns { display: flex; gap: 8px; }
+    .score-badge { display: inline-block; min-width: 58px; text-align: center; padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+    .score-high { background: #e3f3ea; color: var(--success); }
+    .score-mid { background: var(--warning-bg); color: var(--warning-text); }
+    .score-low { background: #fbe4e4; color: var(--danger); }
+    .score-none { background: #f3eef0; color: var(--text-muted); }
+    .score-cell .status-text { display: block; margin-top: 2px; }
+    .status-text { font-size: 0.74rem; color: var(--text-muted); font-weight: 500; }
+    .flag-chip { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 6px; background: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning-border); margin: 3px 4px 0 0; white-space: nowrap; }
+    .flag-chip.danger { background: #fbe4e4; color: var(--danger); border-color: #f1c2c2; }
+    .modal-section-title { font-size: 0.78rem; font-weight: 700; color: var(--crimson); text-transform: uppercase; letter-spacing: 0.07em; margin: 4px 0 8px; }
+    .table-scroll { overflow-x: auto; }
+    .modal-table tr.row-selected td { background: #fff8fa; }
+    .modal-table select, .modal-table input[type=number], .modal-table input[type=datetime-local] { padding: 5px 7px; border: 1px solid #e3c6cf; border-radius: 6px; font: inherit; font-size: 0.8rem; background: #fff; max-width: 190px; }
+    .modal-table select:disabled, .modal-table input:disabled { opacity: 0.45; }
+    .modal-table .num-input { width: 64px; min-height: 0; }
+    .select-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 0 6px; font-size: 0.84rem; }
+    .select-bar .btns { display: flex; gap: 8px; }
+    .eval-empty { margin-top: 12px; padding: 14px 16px; border: 1px dashed #e3c6cf; border-radius: 10px; color: var(--text-muted); font-size: 0.86rem; }
+    .eval-summary { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; background: var(--pink-tint); border-radius: 12px; padding: 14px 18px; margin: 14px 0 12px; }
+    .big-score { font-size: 2rem; font-weight: 700; color: var(--crimson); line-height: 1; font-variant-numeric: tabular-nums; }
+    .big-score small { font-size: 0.9rem; color: var(--text-muted); font-weight: 600; }
+    .eval-summary .summary-main { flex: 1; min-width: 240px; font-size: 0.86rem; }
+    .override-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; font-size: 0.8rem; }
+    .override-row .num-input { width: 78px; min-height: 34px; padding: 6px 8px; }
+    .override-row .note-input { min-height: 34px; padding: 6px 8px; }
+    .repo-result { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; background: #fff; }
+    .repo-result > summary { padding: 10px 14px; cursor: pointer; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 0.86rem; }
+    .repo-result .repo-body { padding: 0 14px 12px; }
+    .tag-pill { font-family: Consolas, "SFMono-Regular", Menlo, monospace; font-size: 0.76rem; background: var(--pink-tint); color: var(--crimson-dark); padding: 1px 7px; border-radius: 6px; }
+    .warn-note { font-size: 0.8rem; color: var(--warning-text); background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: 8px; padding: 6px 10px; margin: 4px 0 8px; }
+    .checks-table td { font-size: 0.8rem; vertical-align: top; }
+    .checks-table .evidence { color: var(--text); word-break: break-word; }
+    .res { font-weight: 700; white-space: nowrap; }
+    .res-pass { color: var(--success); }
+    .res-partial { color: var(--warning-text); }
+    .res-fail { color: var(--danger); }
+    .res-skip, .res-off { color: var(--text-muted); font-weight: 600; }
+    .controls .filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
     /* Footer */
     .site-footer {
       background: #fff;
@@ -557,6 +623,11 @@
       .card td.empty-state::before { display: none; }
       .card td.actions-cell { padding-top: 10px; gap: 8px; }
       .card td.actions-cell::before { display: none; }
+      .card td.score-cell > div { text-align: right; }
+      .score-actions { flex-direction: column; align-items: stretch; }
+      .score-actions .btn { width: 100%; }
+      .modal { padding: 18px 16px; }
+      .eval-summary { padding: 12px 14px; }
       .card td.actions-cell .btn { flex: 1; }
       .hero-inner { padding-top: 24px; padding-bottom: 24px; gap: 14px; }
       .hero-mark { width: 44px; height: 44px; }
@@ -683,6 +754,33 @@
         </div>
       </div>
 
+      <!-- Scoring -->
+      <section class="scoring-panel" aria-labelledby="scoring-title">
+        <div class="section-head">
+          <h2 id="scoring-title">Scoring</h2>
+          <p>Score each student out of 100 from the repositories you choose. Pick repos per student with <strong>Preview &amp; score</strong>, or score the whole class here.</p>
+        </div>
+        <div class="score-actions">
+          <label class="field" for="eval-rule">Repos for students you haven&#8217;t set up
+            <select id="eval-rule" onchange="updateRuleFields()">
+              <option value="latest">Their latest pushed repo</option>
+              <option value="name_contains">Repos whose name contains&#8230;</option>
+              <option value="all_pushed">Every repo with a pushed image</option>
+              <option value="keep">None (only re-score students already set up)</option>
+            </select>
+          </label>
+          <label class="field" for="eval-text" id="eval-text-field" style="display:none;">Name contains
+            <input type="text" id="eval-text" placeholder="e.g. todo" maxlength="100">
+          </label>
+          <label class="check-label"><input type="checkbox" id="eval-overwrite"> Replace repos I picked by hand</label>
+          <button id="btn-eval-all" class="btn btn-primary" onclick="startEvaluateAll()">Evaluate all students</button>
+        </div>
+        <details class="rubric-box" id="rubric-box">
+          <summary>Rubric <span id="rubric-summary">(loading)</span></summary>
+          <div class="rubric-inner" id="rubric-inner"></div>
+        </details>
+      </section>
+
       <!-- Controls -->
       <div class="section-head">
         <h2>Students</h2>
@@ -691,7 +789,17 @@
         <div class="search-box">
           <input type="text" id="search-input" placeholder="Search by name, roll number, or Docker ID..." oninput="filterTable()">
         </div>
-        <div id="student-count-badge" class="stats-badge">Showing 0 students</div>
+        <div class="filters">
+          <select id="status-filter" class="status-select" aria-label="Filter students by score status" onchange="filterTable()">
+            <option value="all">All students</option>
+            <option value="not_evaluated">Not scored yet</option>
+            <option value="scored">Scored</option>
+            <option value="overridden">Overridden</option>
+            <option value="needs_recheck">Needs re-check</option>
+            <option value="flagged">Flagged</option>
+          </select>
+          <div id="student-count-badge" class="stats-badge">Showing 0 students</div>
+        </div>
       </div>
 
       <!-- Students Table -->
@@ -701,13 +809,14 @@
             <tr>
               <th style="width: 180px;">Roll Number</th>
               <th>Student Name</th>
-              <th style="width: 240px;">Docker ID</th>
-              <th style="width: 250px; text-align: right;">Actions</th>
+              <th style="width: 220px;">Docker ID</th>
+              <th style="width: 170px;">Score</th>
+              <th style="width: 270px; text-align: right;">Actions</th>
             </tr>
           </thead>
           <tbody id="students-tbody">
             <tr>
-              <td colspan="4" class="empty-state">No students loaded</td>
+              <td colspan="5" class="empty-state">No students loaded</td>
             </tr>
           </tbody>
         </table>
@@ -749,7 +858,17 @@
     let allStudents = [];
     let modalRepos = [];
     let activeJobId = null;
+    let activeJobKind = 'export';
     let jobPollTimer = null;
+    let scoreMap = {};          // docker id (lower) -> score summary
+    let rubricData = null;      // {rubric, checks, flags}
+    let modalDockerId = null;
+    let modalSel = {};          // repo -> {checked, tag, weight, deadline}
+    let modalEval = null;       // evaluation detail for the open student
+    const FLAG_SHORT = { F1: 'Possible copy', F2: 'Same image twice', F3: 'Re-tag', F4: 'Late', F5: 'Re-check', F6: 'Secret' };
+    const FLAG_DANGER = new Set(['F1', 'F6']);
+    const STATUS_TEXT = { scored: 'Scored', overridden: 'Overridden', needs_recheck: 'Needs re-check', not_evaluated: 'Not scored', no_image: 'No image pushed' };
+    const RESULT_TEXT = { pass: 'Pass', partial: 'Partial', fail: 'Fail', skip: 'Skipped', off: 'Off' };
 
     // Drag and drop event listeners
     const dropZone = document.getElementById('drop-zone');
@@ -870,7 +989,9 @@
         document.getElementById('roster-view').style.display = 'block';
         document.getElementById('header-actions').style.display = 'block';
 
-        renderTable(allStudents);
+        filterTable();
+        loadRubric();
+        loadScores();
       } catch (err) {
         showToast(`Error: ${err.message}`, 'error');
         resetRoster();
@@ -883,7 +1004,7 @@
       badge.textContent = `Showing ${students.length} of ${allStudents.length} students`;
 
       if (students.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No matching students found</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-state">No matching students found</td></tr>`;
         return;
       }
 
@@ -901,9 +1022,10 @@
                 ${escapeHtml(s.docker_id)} &nearr;
               </a>
             </td>
+            <td class="score-cell" data-label="Score"><div>${scoreCell(scoreMap[s.docker_id.toLowerCase()])}</div></td>
             <td class="actions-cell">
               <button class="btn btn-secondary btn-sm" id="btn-prev-${escapeHtml(s.docker_id)}" onclick="previewStudent('${escapeHtml(s.docker_id)}')">
-                Preview
+                Preview &amp; score
               </button>
               <button class="btn btn-primary btn-sm" id="btn-dl-${escapeHtml(s.docker_id)}" onclick="downloadStudent('${escapeHtml(s.docker_id)}')">
                 Download Excel
@@ -916,15 +1038,19 @@
 
     function filterTable() {
       const q = document.getElementById('search-input').value.toLowerCase().trim();
-      if (!q) {
-        renderTable(allStudents);
-        return;
-      }
-      const filtered = allStudents.filter(s => 
-        (s.roll && s.roll.toLowerCase().includes(q)) ||
-        (s.name && s.name.toLowerCase().includes(q)) ||
-        (s.docker_id && s.docker_id.toLowerCase().includes(q))
-      );
+      const status = document.getElementById('status-filter').value;
+      const filtered = allStudents.filter(s => {
+        const textOk = !q ||
+          (s.roll && s.roll.toLowerCase().includes(q)) ||
+          (s.name && s.name.toLowerCase().includes(q)) ||
+          (s.docker_id && s.docker_id.toLowerCase().includes(q));
+        if (!textOk) return false;
+        if (status === 'all') return true;
+        const sc = scoreMap[s.docker_id.toLowerCase()];
+        const st = sc ? sc.status : 'not_evaluated';
+        if (status === 'flagged') return !!(sc && sc.flags && sc.flags.length);
+        return st === status;
+      });
       renderTable(filtered);
     }
 
@@ -937,6 +1063,8 @@
       currentRosterId = null;
       currentFilename = null;
       allStudents = [];
+      scoreMap = {};
+      rubricData = null;
       localStorage.removeItem('roster_id');
       localStorage.removeItem('roster_filename');
     }
@@ -980,8 +1108,12 @@
       modalBody.innerHTML = `<div style="text-align:center; padding:30px;"><div class="spinner spinner-dark" style="margin:0 auto 12px;"></div> Loading live repository submissions...</div>`;
       modal.style.display = 'flex';
 
+      modalDockerId = dockerId;
+      modalSel = {};
+      modalEval = null;
       try {
-        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/students/${encodeURIComponent(dockerId)}/preview`);
+        const base = `/api/roster/${encodeURIComponent(currentRosterId)}/students/${encodeURIComponent(dockerId)}`;
+        const [res, evRes] = await Promise.all([fetch(`${base}/preview`), fetch(`${base}/evaluation`)]);
         if (res.status === 404) {
           closeModal();
           showToast('Session expired or student not found. Refreshing roster...', 'error');
@@ -994,6 +1126,10 @@
         }
         const data = await res.json();
         modalRepos = data.repos || [];
+        modalEval = evRes.ok ? await evRes.json() : null;
+        (modalEval && modalEval.selections || []).forEach(sel => {
+          modalSel[sel.repo] = { checked: true, tag: sel.tag || '', weight: sel.weight, deadline: isoToIstInput(sel.deadline) };
+        });
 
         const rollText = (data.roll && data.roll !== '-') ? ` (${data.roll})` : '';
         const nameText = (data.name && data.name !== '-') ? data.name : data.docker_id;
@@ -1007,24 +1143,39 @@
             ${data.error_note ? `<div class="totals-item" style="color:var(--danger)">${escapeHtml(data.error_note)}</div>` : ''}
           </div>
 
+          <div id="eval-results"></div>
+
+          <div class="modal-section-title" style="margin-top:16px;">Choose repositories to evaluate</div>
           <div class="modal-filter-box">
             <input type="text" id="modal-repo-search" placeholder="Filter repositories by name..." oninput="filterModalRepos()">
           </div>
 
+          <div class="table-scroll">
           <table class="modal-table">
             <thead>
               <tr>
-                <th style="width: 50px;">S.No</th>
+                <th style="width: 44px;">Score</th>
                 <th>Repository Name</th>
-                <th style="width: 170px;">Submission Date (IST)</th>
-                <th style="width: 80px; text-align: right;">Pulls</th>
+                <th style="width: 150px;">Submission Date (IST)</th>
+                <th style="width: 150px;">Tag</th>
+                <th style="width: 76px;">Weight</th>
+                <th style="width: 190px;">Own deadline (IST)</th>
               </tr>
             </thead>
             <tbody id="modal-repos-tbody">
             </tbody>
           </table>
+          </div>
+          <div class="select-bar">
+            <span id="sel-count" class="status-text"></span>
+            <div class="btns">
+              <button class="btn btn-outline btn-sm" onclick="clearSelection()">Clear selection</button>
+              <button class="btn btn-primary btn-sm" id="btn-evaluate" onclick="evaluateSelected()">Evaluate selected</button>
+            </div>
+          </div>
         `;
         renderModalRepos(modalRepos);
+        renderEvalResults();
       } catch (err) {
         modalBody.innerHTML = `<div style="color:var(--danger); padding:20px; text-align:center;">Error: ${escapeHtml(err.message)}</div>`;
       } finally {
@@ -1036,24 +1187,36 @@
       const tbody = document.getElementById('modal-repos-tbody');
       if (!tbody) return;
 
+      updateSelCount();
       if (!repos || repos.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="empty-state">No repositories found</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No repositories found</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = repos.map((r, idx) => `
-        <tr>
-          <td>${idx + 1}</td>
+      tbody.innerHTML = repos.map(r => {
+        const sel = modalSel[r.name] || {};
+        const on = !!sel.checked;
+        const dis = on ? '' : 'disabled';
+        const repoAttr = `data-repo="${escapeHtml(r.name)}"`;
+        const tagOptions = (r.tags || []).map(t =>
+          `<option value="${escapeHtml(t.name)}" ${sel.tag === t.name ? 'selected' : ''}>${escapeHtml(t.name)}${t.pushed ? ' &middot; ' + escapeHtml(shortDate(t.pushed)) : ''}</option>`).join('');
+        return `
+        <tr class="${on ? 'row-selected' : ''}">
+          <td><input type="checkbox" ${repoAttr} aria-label="Evaluate ${escapeHtml(r.name)}" ${on ? 'checked' : ''} onchange="toggleRepo(this)"></td>
           <td>
             <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="docker-link">
               ${escapeHtml(r.name)} &nearr;
             </a>
+            <div class="status-text">${Number(r.pulls) || 0} pulls</div>
             ${r.notes ? `<div style="font-size:0.75rem; color:#c62828; font-style:italic;">${escapeHtml(r.notes)}</div>` : ''}
           </td>
           <td>${formatIsoToIst(r.submission_date)}</td>
-          <td style="text-align: right; font-weight:600;">${r.pulls}</td>
-        </tr>
-      `).join('');
+          <td><select ${repoAttr} aria-label="Tag for ${escapeHtml(r.name)}" onchange="setSel(this, 'tag')" ${dis}>
+                <option value="">Auto (last push)</option>${tagOptions}</select></td>
+          <td><input type="number" class="num-input" ${repoAttr} aria-label="Weight for ${escapeHtml(r.name)}" min="0.5" max="100" step="0.5" value="${escapeHtml(String(sel.weight || 1))}" onchange="setSel(this, 'weight')" ${dis}></td>
+          <td><input type="datetime-local" ${repoAttr} aria-label="Own deadline for ${escapeHtml(r.name)}" value="${escapeHtml(sel.deadline || '')}" onchange="setSel(this, 'deadline')" ${dis}></td>
+        </tr>`;
+      }).join('');
     }
 
     function filterModalRepos() {
@@ -1068,6 +1231,384 @@
 
     function closeModal() {
       document.getElementById('modal-backdrop').style.display = 'none';
+      modalDockerId = null;
+    }
+
+    // ---------------------------------------------------------------- scoring
+    function scoreClass(v) {
+      if (v === null || v === undefined) return 'score-none';
+      return v >= 75 ? 'score-high' : (v >= 50 ? 'score-mid' : 'score-low');
+    }
+
+    function fmtScore(v) {
+      return (v === null || v === undefined) ? '&mdash;' : (Math.round(v * 10) / 10).toString();
+    }
+
+    function scoreBadge(v, label) {
+      return `<span class="score-badge ${scoreClass(v)}">${label || fmtScore(v)}</span>`;
+    }
+
+    function flagChips(flags) {
+      const labels = (rubricData && rubricData.flags) || (modalEval && modalEval.flag_labels) || {};
+      return (flags || []).map(f =>
+        `<span class="flag-chip ${FLAG_DANGER.has(f) ? 'danger' : ''}" title="${escapeHtml(f + ': ' + (labels[f] || ''))}">${escapeHtml(FLAG_SHORT[f] || f)}</span>`).join('');
+    }
+
+    function scoreCell(sc) {
+      if (!sc || sc.status === 'not_evaluated') {
+        return `${scoreBadge(null)}<span class="status-text">Not scored</span>`;
+      }
+      const label = sc.final === null ? 'Re-check' : `${fmtScore(sc.final)}/100`;
+      let note = `${sc.repos} repo${sc.repos === 1 ? '' : 's'}`;
+      if (sc.overridden) note += ` &middot; overridden (suggested ${fmtScore(sc.suggested)})`;
+      if (sc.provisional) note += ' &middot; provisional';
+      return `${scoreBadge(sc.final, label)}<span class="status-text">${note}</span>${flagChips(sc.flags)}`;
+    }
+
+    async function loadScores() {
+      if (!currentRosterId) return;
+      try {
+        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/scores`);
+        if (!res.ok) return;
+        const data = await res.json();
+        scoreMap = {};
+        (data.students || []).forEach(s => { scoreMap[s.docker_id.toLowerCase()] = s; });
+        filterTable();
+      } catch (e) {
+        console.warn('Could not load scores:', e);
+      }
+    }
+
+    function shortDate(iso) {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+
+    // ISO date-time -> value for <input type="datetime-local"> in IST
+    function isoToIstInput(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d);
+      const g = t => (parts.find(p => p.type === t) || {}).value;
+      return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
+    }
+
+    function toggleRepo(el) {
+      const repo = el.dataset.repo;
+      modalSel[repo] = Object.assign({ tag: '', weight: 1, deadline: '' }, modalSel[repo] || {}, { checked: el.checked });
+      filterModalRepos();
+    }
+
+    function setSel(el, field) {
+      const repo = el.dataset.repo;
+      modalSel[repo] = Object.assign({ checked: true, tag: '', weight: 1, deadline: '' }, modalSel[repo] || {});
+      modalSel[repo][field] = el.value;
+    }
+
+    function selectedRepos() {
+      return Object.entries(modalSel).filter(([, v]) => v.checked).map(([repo, v]) => ({
+        repo, tag: v.tag || null, weight: Number(v.weight) || 1, deadline: v.deadline || null,
+      }));
+    }
+
+    function updateSelCount() {
+      const el = document.getElementById('sel-count');
+      if (!el) return;
+      const n = selectedRepos().length;
+      el.textContent = n ? `${n} repositor${n === 1 ? 'y' : 'ies'} selected` : 'No repositories selected';
+    }
+
+    function clearSelection() {
+      Object.values(modalSel).forEach(v => { v.checked = false; });
+      filterModalRepos();
+    }
+
+    async function evaluateSelected() {
+      const repos = selectedRepos();
+      if (!repos.length && !(modalEval && modalEval.repos && modalEval.repos.length)) {
+        showToast('Tick at least one repository to evaluate.', 'error');
+        return;
+      }
+      const btn = document.getElementById('btn-evaluate');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> Evaluating...`;
+      try {
+        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/students/${encodeURIComponent(modalDockerId)}/evaluate`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repos }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || 'Evaluation failed');
+        modalEval = data;
+        renderEvalResults();
+        document.getElementById('modal-body').scrollTo({ top: 0, behavior: 'smooth' });
+        loadScores();
+        showToast(repos.length ? `Scored ${repos.length} repositor${repos.length === 1 ? 'y' : 'ies'}` : 'Selection cleared', 'success');
+      } catch (err) {
+        showToast(`Could not evaluate: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Evaluate selected';
+      }
+    }
+
+    function overrideRow(repo, score, note) {
+      const repoAttr = repo ? `data-repo="${escapeHtml(repo)}"` : '';
+      const what = repo ? 'this repository' : 'the student';
+      return `
+        <div class="override-row">
+          <label>Override score for ${what}
+            <input type="number" class="num-input" min="0" max="100" step="0.5" value="${score === null || score === undefined ? '' : escapeHtml(String(score))}" aria-label="Override score for ${what}">
+          </label>
+          <input type="text" class="note-input" maxlength="500" placeholder="Reason (kept in the marks sheet)" value="${escapeHtml(note || '')}" aria-label="Override reason for ${what}">
+          <button class="btn btn-secondary btn-sm" ${repoAttr} onclick="saveOverride(this, false)">Save</button>
+          ${score === null || score === undefined ? '' : `<button class="btn btn-outline btn-sm" ${repoAttr} onclick="saveOverride(this, true)">Clear</button>`}
+        </div>`;
+    }
+
+    function renderEvalResults() {
+      const box = document.getElementById('eval-results');
+      if (!box) return;
+      if (!modalEval || !modalEval.repos || !modalEval.repos.length) {
+        box.innerHTML = `<div class="eval-empty">Not scored yet. Tick one or more repositories below, choose a tag if needed, and press <strong>Evaluate selected</strong>.</div>`;
+        return;
+      }
+      const s = modalEval.summary;
+      const statusLine = [`Suggested <strong>${fmtScore(s.suggested)}</strong>`, STATUS_TEXT[s.status] || s.status];
+      if (s.provisional) statusLine.push('provisional until the Docker Hub error is re-checked');
+      box.innerHTML = `
+        <div class="modal-section-title">Score</div>
+        <div class="eval-summary">
+          <div><div class="big-score">${fmtScore(s.final)}<small> / 100</small></div><div class="status-text">Final score</div></div>
+          <div class="summary-main">
+            <div>${statusLine.join(' &middot; ')}</div>
+            <div>${flagChips(s.flags)}</div>
+            ${overrideRow(null, modalEval.override_score, modalEval.override_note)}
+          </div>
+        </div>
+        ${modalEval.repos.map(renderRepoResult).join('')}`;
+    }
+
+    function renderRepoResult(r, i) {
+      const sel = r.selection || {};
+      let meta = `weight ${escapeHtml(String(sel.weight || 1))}`;
+      if (r.status === 'needs_recheck') meta += ' &middot; needs re-check';
+      else if (r.status === 'no_image') meta += ' &middot; no image pushed';
+      else if (r.base) meta += ` &middot; base ${escapeHtml(r.base)} (${escapeHtml(r.confidence)} confidence) &middot; ${Number(r.own_steps) || 0} own step(s)`;
+      const label = r.final_score === null || r.final_score === undefined ? 'Re-check' : `${fmtScore(r.final_score)}/100`;
+      const rows = (r.checks || []).map(c => `
+        <tr>
+          <td><strong>${escapeHtml(c.id)}</strong> ${escapeHtml(c.label)}<span class="check-help">${escapeHtml(c.area)}</span></td>
+          <td><span class="res res-${escapeHtml(c.status)}">${RESULT_TEXT[c.status] || escapeHtml(c.status)}</span></td>
+          <td style="text-align:right; white-space:nowrap;">${c.status === 'skip' || c.status === 'off' ? '&mdash;' : `${escapeHtml(String(c.earned))} / ${escapeHtml(String(c.max_points))}`}</td>
+          <td class="evidence">${escapeHtml(c.evidence)}</td>
+        </tr>`).join('');
+      return `
+        <details class="repo-result" ${i === 0 ? 'open' : ''}>
+          <summary>
+            <strong>${escapeHtml(r.repo)}</strong>
+            <span class="tag-pill">${escapeHtml(r.tag || 'no tag')}</span>
+            ${scoreBadge(r.final_score, label)}
+            ${r.override_score !== null && r.override_score !== undefined ? `<span class="status-text">overridden (suggested ${fmtScore(r.score)})</span>` : ''}
+            <span class="status-text">${meta}</span>
+            ${flagChips(r.flags)}
+          </summary>
+          <div class="repo-body">
+            ${r.note ? `<p class="warn-note">${escapeHtml(r.note)}</p>` : ''}
+            ${(r.penalties || []).length ? `<p class="warn-note">Penalties: ${r.penalties.map(escapeHtml).join('; ')}</p>` : ''}
+            ${rows ? `<div class="table-scroll"><table class="modal-table checks-table">
+              <thead><tr><th style="width:210px;">Check</th><th style="width:72px;">Result</th><th style="width:74px; text-align:right;">Points</th><th>Evidence</th></tr></thead>
+              <tbody>${rows}</tbody></table></div>` : ''}
+            ${overrideRow(r.repo, r.override_score, r.override_note)}
+          </div>
+        </details>`;
+    }
+
+    async function saveOverride(btn, clear) {
+      const row = btn.closest('.override-row');
+      const scoreEl = row.querySelector('input[type=number]');
+      const noteEl = row.querySelector('input[type=text]');
+      const score = clear || scoreEl.value === '' ? null : Number(scoreEl.value);
+      if (score !== null && (isNaN(score) || score < 0 || score > 100)) {
+        showToast('Override score must be between 0 and 100.', 'error');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/students/${encodeURIComponent(modalDockerId)}/override`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo: btn.dataset.repo || null, score, note: clear ? '' : noteEl.value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || 'Could not save the override');
+        modalEval = data;
+        renderEvalResults();
+        loadScores();
+        showToast(score === null ? 'Override cleared' : 'Override saved', 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    // ---------------------------------------------------------------- rubric
+    async function loadRubric() {
+      if (!currentRosterId) return;
+      try {
+        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/rubric`);
+        if (!res.ok) return;
+        rubricData = await res.json();
+        renderRubric();
+      } catch (e) {
+        console.warn('Could not load rubric:', e);
+      }
+    }
+
+    function renderRubric() {
+      const box = document.getElementById('rubric-inner');
+      if (!rubricData || !box) return;
+      const r = rubricData.rubric;
+      let lastArea = '';
+      const rows = rubricData.checks.map(c => {
+        const set = r.checks[c.id] || { enabled: true, points: c.default_points };
+        let head = '';
+        if (c.area !== lastArea) {
+          lastArea = c.area;
+          head = `<tr class="area-row"><td colspan="3">${escapeHtml(c.area)}</td></tr>`;
+        }
+        return `${head}
+          <tr>
+            <td style="width:36px;"><input type="checkbox" id="rc-${c.id}" ${set.enabled ? 'checked' : ''} onchange="updateRubricTotal()" aria-label="Use check ${escapeHtml(c.label)}"></td>
+            <td><label for="rc-${c.id}"><strong>${escapeHtml(c.id)}</strong> ${escapeHtml(c.label)}</label><span class="check-help">${escapeHtml(c.help)}</span></td>
+            <td style="width:110px; text-align:right;"><input type="number" class="num-input" id="rp-${c.id}" min="0" max="100" step="0.5" value="${escapeHtml(String(set.points))}" oninput="updateRubricTotal()" aria-label="Points for ${escapeHtml(c.label)}"></td>
+          </tr>`;
+      }).join('');
+      box.innerHTML = `
+        <div class="rubric-settings">
+          <label class="field" for="rb-deadline">Class deadline (IST, optional)
+            <input type="datetime-local" id="rb-deadline" value="${escapeHtml(isoToIstInput(r.deadline))}">
+          </label>
+          <label class="field" for="rb-late">Late penalty (% of the repo score)
+            <input type="number" id="rb-late" min="0" max="100" step="1" value="${escapeHtml(String(r.late_penalty_percent))}">
+          </label>
+          <label class="field" for="rb-size">Image size limit (MB, compressed)
+            <input type="number" id="rb-size" min="1" max="100000" step="10" value="${escapeHtml(String(r.size_limit_mb))}">
+          </label>
+          <label class="field" for="rb-secret">Secret-in-image penalty (points)
+            <input type="number" id="rb-secret" min="0" max="100" step="1" value="${escapeHtml(String(r.secret_penalty))}">
+          </label>
+        </div>
+        <div class="table-scroll"><table class="rubric-table"><tbody>${rows}</tbody></table></div>
+        <div class="rubric-foot">
+          <span id="rubric-total" class="status-text"></span>
+          <div class="btns">
+            <button class="btn btn-outline btn-sm" onclick="resetRubric()">Reset to default</button>
+            <button class="btn btn-primary btn-sm" id="btn-save-rubric" onclick="saveRubric()">Save rubric</button>
+          </div>
+        </div>`;
+      updateRubricTotal();
+      const on = rubricData.checks.filter(c => (r.checks[c.id] || {}).enabled !== false).length;
+      document.getElementById('rubric-summary').textContent =
+        `(${on} of ${rubricData.checks.length} checks on${r.deadline ? ', deadline ' + shortDate(r.deadline) : ', no deadline'}) - click to view or edit`;
+    }
+
+    function readRubricForm() {
+      const checks = {};
+      rubricData.checks.forEach(c => {
+        checks[c.id] = {
+          enabled: document.getElementById(`rc-${c.id}`).checked,
+          points: Number(document.getElementById(`rp-${c.id}`).value),
+        };
+      });
+      return {
+        checks,
+        deadline: document.getElementById('rb-deadline').value || null,
+        late_penalty_percent: Number(document.getElementById('rb-late').value || 0),
+        size_limit_mb: Number(document.getElementById('rb-size').value || 500),
+        secret_penalty: Number(document.getElementById('rb-secret').value || 0),
+      };
+    }
+
+    function updateRubricTotal() {
+      const el = document.getElementById('rubric-total');
+      if (!el || !rubricData) return;
+      const form = readRubricForm();
+      const total = Object.values(form.checks).filter(c => c.enabled).reduce((a, c) => a + (Number(c.points) || 0), 0);
+      el.textContent = `Switched-on checks add up to ${Math.round(total * 10) / 10} points. Each repo is always scaled to 100, and skipped checks are shared out.`;
+    }
+
+    async function saveRubric() {
+      const btn = document.getElementById('btn-save-rubric');
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/rubric`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(readRubricForm()),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || 'Could not save the rubric');
+        rubricData = data;
+        renderRubric();
+        loadScores();
+        showToast('Rubric saved. Existing scores were updated.', 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function resetRubric() {
+      try {
+        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/rubric`, { method: 'DELETE' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || 'Could not reset the rubric');
+        rubricData = data;
+        renderRubric();
+        loadScores();
+        showToast('Rubric reset to the default.', 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    function updateRuleFields() {
+      const rule = document.getElementById('eval-rule').value;
+      document.getElementById('eval-text-field').style.display = rule === 'name_contains' ? 'flex' : 'none';
+    }
+
+    function setJobButtons(disabled) {
+      document.getElementById('btn-export-all').disabled = disabled;
+      document.getElementById('btn-eval-all').disabled = disabled;
+    }
+
+    async function startEvaluateAll() {
+      const rule = document.getElementById('eval-rule').value;
+      const text = document.getElementById('eval-text').value.trim();
+      if (rule === 'name_contains' && !text) {
+        showToast('Type the text the repository name should contain.', 'error');
+        return;
+      }
+      setJobButtons(true);
+      try {
+        const res = await fetch(`/api/roster/${encodeURIComponent(currentRosterId)}/evaluate-all/start`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rule, text, overwrite: document.getElementById('eval-overwrite').checked }),
+        });
+        if (res.status === 404) {
+          showToast('Session expired. Please re-upload your roster.', 'error');
+          resetRoster();
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || 'Could not start scoring');
+        activeJobId = data.job_id;
+        activeJobKind = 'evaluate';
+        document.getElementById('export-progress-panel').style.display = 'block';
+        document.getElementById('export-status-label').textContent = 'Scoring students...';
+        pollJobStatus();
+      } catch (err) {
+        showToast(`Could not start scoring: ${err.message}`, 'error');
+        setJobButtons(false);
+      }
     }
 
     async function downloadStudent(dockerId) {
@@ -1157,6 +1698,8 @@
         }
 
         activeJobId = data.job_id;
+        activeJobKind = 'export';
+        setJobButtons(true);
         document.getElementById('export-progress-panel').style.display = 'block';
         showToast('Background export job started. Tracking progress...', 'info');
 
@@ -1187,7 +1730,23 @@
           document.getElementById('export-progress-fill').style.width = `${pct}%`;
           document.getElementById('export-counter').textContent = `${job.done} / ${job.total} (${pct}%)`;
 
-          const currentMsg = job.current ? `Fetching ${job.current}...` : 'Compiling Excel report...';
+          if (job.kind === 'evaluate') {
+            const msg = job.note || (job.current ? `checking ${job.current}...` : 'finishing...');
+            document.getElementById('export-status-label').textContent = `Scoring: ${msg}`;
+            if (job.status === 'done' || job.status === 'failed') {
+              stopExportPolling();
+              const ok = job.status === 'done';
+              document.getElementById('export-status-label').textContent = ok ? `Scoring finished. ${job.note || ''}` : `Scoring failed: ${job.error || 'Unknown error'}`;
+              showToast(ok ? (job.note || 'Scoring finished') : `Scoring failed: ${job.error || 'Server error'}`, ok ? 'success' : 'error');
+              activeJobId = null;
+              setJobButtons(false);
+              loadScores();
+              setTimeout(() => { if (!activeJobId) document.getElementById('export-progress-panel').style.display = 'none'; }, 4000);
+            }
+            return;
+          }
+
+          const currentMsg = job.note || (job.current ? `Fetching ${job.current}...` : 'Compiling Excel report...');
           document.getElementById('export-status-label').textContent = `Export progress: ${currentMsg}`;
 
           if (job.status === 'done') {
@@ -1203,18 +1762,18 @@
             setTimeout(() => {
               document.getElementById('export-progress-panel').style.display = 'none';
               const btn = document.getElementById('btn-export-all');
-              btn.disabled = false;
               btn.innerHTML = `<span>Download All (Excel)</span>`;
               activeJobId = null;
+              setJobButtons(false);
             }, 3000);
           } else if (job.status === 'failed') {
             stopExportPolling();
             document.getElementById('export-status-label').textContent = `Export failed: ${job.error || 'Unknown error'}`;
             showToast(`Export failed: ${job.error || 'Server error'}`, 'error');
             const btn = document.getElementById('btn-export-all');
-            btn.disabled = false;
             btn.innerHTML = `<span>Download All (Excel)</span>`;
             activeJobId = null;
+            setJobButtons(false);
           }
         } catch (err) {
           // If polling network fails temporarily, keep polling or notify

@@ -5,7 +5,7 @@ import logging
 import secrets
 from pathlib import Path
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Response, UploadFile, File
+from fastapi import Body, FastAPI, HTTPException, Response, UploadFile, File
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -20,6 +20,19 @@ from app.excel import (
 )
 from app.roster import parse_roster_excel, roster_store, RosterParseError
 from app.jobs import job_manager
+from app.evaluation import (
+    AUTO_RULES,
+    SelectionError,
+    class_flags,
+    evaluate_student,
+    rescore_all,
+    scoring_for,
+    set_override,
+    student_detail,
+    student_summary,
+    validate_selections,
+)
+from app.scoring import FLAGS, Rubric, catalogue
 
 logger = logging.getLogger(__name__)
 
@@ -219,6 +232,10 @@ async def preview_student(roster_id: str, docker_id: str):
             "submission_date": sub.submission_date,
             "pulls": sub.pull_count,
             "notes": sub.notes,
+            "tags": [
+                {"name": t.name, "pushed": t.tag_last_pushed}
+                for t in sorted(sub.tags, key=lambda t: t.tag_last_pushed or "", reverse=True)
+            ],
         }
         for sub in profile.submissions
     ]
@@ -259,7 +276,10 @@ async def export_student_excel(roster_id: str, docker_id: str):
         use_cache=True,
     )
 
-    wb = build_student_workbook(profile)
+    evaluation = None
+    if roster.scoring is not None and student.docker_id_lower in roster.scoring.students:
+        evaluation = student_detail(roster.scoring, student)
+    wb = build_student_workbook(profile, evaluation=evaluation)
     content = workbook_to_bytes(wb)
 
     filename = make_student_filename(student.roll, student.docker_id)
@@ -289,11 +309,13 @@ async def get_job_status(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found or expired.")
     return {
         "job_id": job.job_id,
+        "kind": job.kind,
         "status": job.status,
         "done": job.done,
         "total": job.total,
         "current": job.current,
         "error": job.error,
+        "note": job.status_note(),
     }
 
 @app.get("/api/jobs/{job_id}/download")
@@ -301,6 +323,9 @@ async def download_job_excel(job_id: str):
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found or expired.")
+
+    if job.kind != "export":
+        raise HTTPException(status_code=400, detail="This job has no file to download.")
 
     if job.status != "done":
         raise HTTPException(
@@ -316,3 +341,107 @@ async def download_job_excel(job_id: str):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": content_disposition(job.download_filename)}
     )
+
+
+# ---------------------------------------------------------------------------
+# Repo selection and scoring (docs/plans/repo-scoring.md)
+# ---------------------------------------------------------------------------
+
+ROSTER_GONE = "Roster expired or not found. Please upload your student list again."
+
+
+def _roster_or_404(roster_id: str):
+    roster = roster_store.get(roster_id)
+    if not roster:
+        raise HTTPException(status_code=404, detail=ROSTER_GONE)
+    return roster
+
+
+def _student_or_404(roster, docker_id: str):
+    student = roster.find_student(docker_id)
+    if not student:
+        raise HTTPException(status_code=404, detail=f"Student with Docker ID '{docker_id}' not found in this roster.")
+    return student
+
+
+def _rubric_response(roster) -> dict:
+    return {"rubric": scoring_for(roster).rubric.to_dict(), "checks": catalogue(), "flags": FLAGS}
+
+
+@app.get("/api/roster/{roster_id}/rubric")
+async def get_rubric(roster_id: str):
+    return _rubric_response(_roster_or_404(roster_id))
+
+
+@app.put("/api/roster/{roster_id}/rubric")
+async def update_rubric(roster_id: str, payload: dict = Body(...)):
+    roster = _roster_or_404(roster_id)
+    try:
+        rubric = Rubric.from_dict(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    scoring_for(roster).rubric = rubric
+    rescore_all(roster)  # stored facts are rescored; nothing is fetched again
+    return _rubric_response(roster)
+
+
+@app.delete("/api/roster/{roster_id}/rubric")
+async def reset_rubric(roster_id: str):
+    roster = _roster_or_404(roster_id)
+    scoring_for(roster).rubric = Rubric.default()
+    rescore_all(roster)
+    return _rubric_response(roster)
+
+
+@app.get("/api/roster/{roster_id}/scores")
+async def list_scores(roster_id: str):
+    roster = _roster_or_404(roster_id)
+    scoring = scoring_for(roster)
+    extra = class_flags(scoring)
+    rows = [student_summary(scoring, s, extra) for s in roster.students]
+    return {"students": rows, "evaluated": sum(1 for r in rows if r["status"] != "not_evaluated")}
+
+
+@app.get("/api/roster/{roster_id}/students/{docker_id}/evaluation")
+async def get_evaluation(roster_id: str, docker_id: str):
+    roster = _roster_or_404(roster_id)
+    student = _student_or_404(roster, docker_id)
+    return student_detail(scoring_for(roster), student)
+
+
+@app.post("/api/roster/{roster_id}/students/{docker_id}/evaluate")
+async def evaluate(roster_id: str, docker_id: str, payload: dict = Body(...)):
+    roster = _roster_or_404(roster_id)
+    student = _student_or_404(roster, docker_id)
+    profile = await dockerhub_client.get_student_profile(
+        roll=student.roll, name=student.name, docker_id=student.docker_id, use_cache=True)
+    try:
+        selections = validate_selections(profile, payload.get("repos", []))
+    except SelectionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    await evaluate_student(roster, student, selections, profile=profile)
+    return student_detail(scoring_for(roster), student)
+
+
+@app.put("/api/roster/{roster_id}/students/{docker_id}/override")
+async def override_score(roster_id: str, docker_id: str, payload: dict = Body(...)):
+    roster = _roster_or_404(roster_id)
+    student = _student_or_404(roster, docker_id)
+    try:
+        set_override(roster, student, payload.get("repo"), payload.get("score"), payload.get("note", ""))
+    except SelectionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return student_detail(scoring_for(roster), student)
+
+
+@app.post("/api/roster/{roster_id}/evaluate-all/start")
+async def start_evaluate_all(roster_id: str, payload: dict = Body(default={})):
+    roster = _roster_or_404(roster_id)
+    rule = str(payload.get("rule") or "keep")
+    text = str(payload.get("text") or "").strip()
+    if rule not in AUTO_RULES:
+        raise HTTPException(status_code=400, detail=f"Unknown selection rule '{rule}'.")
+    if rule == "name_contains" and not text:
+        raise HTTPException(status_code=400, detail="Type the text the repository name should contain.")
+    job_id = await job_manager.start_evaluation_job(roster, rule, text[:100], bool(payload.get("overwrite")))
+    return {"job_id": job_id}

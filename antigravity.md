@@ -316,7 +316,8 @@ Work continued in Claude Code after the Antigravity sessions. Changes:
 6. **Tests**: `tests/test_reliability_fixes.py` added (suite now 55 tests).
 7. **Browser verification**: a user-level Playwright skill (`~/.claude/skills/playwright`) was added to Claude Code and used to verify the upload → skipped rows → single-student Excel download flow and phone-width layout against a live server.
 
+8. **Repo selection and scoring** (2026-11-26, branch `feature/repo-scoring`; tag `v1.0` is the state before it). Faculty choose any number of repos per student (tag, weight, own deadline) or score the class with a rule; each repo is scored 0-100 against an editable, domain-agnostic rubric of 20 checks; the student score is the weighted average; faculty can override repo and student scores. New modules: `app/layers.py` (the student's own build steps are separated from the official base image by matching the base's step list, 15/15 public images in the spike), `app/scoring.py` (rubric + checks, pure), `app/evaluation.py` (per-roster state, flags such as possible copies). Docker Hub pacing now follows the `x-ratelimit-*` headers. Excel gains Score, Marks and Repo scores sheets; the Pages demo scores synthetic images. Design and spike: `docs/plans/repo-scoring.md`. Suite: 98 tests.
+
 ### Known gaps (not yet built)
 - `GITHUB_TOKEN` is read but GitHub API enrichment (`enrich_github_repo`) is never called, so it currently has no effect.
-- State (rosters, jobs, cache) is in-process: run a single uvicorn worker; a restart clears everything.
-- The project folder is not under version control yet.
+- State (rosters, jobs, cache, scores) is in-process: run a single uvicorn worker; a restart clears everything.

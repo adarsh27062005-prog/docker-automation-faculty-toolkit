@@ -114,13 +114,12 @@ def auto_fit_columns(ws, min_width: int = 10, max_width: int = 55):
                     max_len = cell_len
         ws.column_dimensions[col_letter].width = min(max(max_len + 3, min_width), max_width)
 
-def build_student_workbook(profile: StudentProfileSummary) -> Workbook:
+def build_student_workbook(profile: StudentProfileSummary, evaluation: Optional[dict] = None) -> Workbook:
     """
     Builds the single-student Excel workbook:
     - Sheet 1: "Repositories" FIRST and set as active sheet
-    - Sheet 2: "Summary"
-    - Sheet 3: "Tags"
-    - Sheet 4: "Notes"
+    - Sheet 2: "Score" (only when the student was evaluated; see app.evaluation.student_detail)
+    - Then "Summary", "Tags", "Notes"
     """
     wb = Workbook()
     
@@ -301,6 +300,9 @@ def build_student_workbook(profile: StudentProfileSummary) -> Workbook:
 
     auto_fit_columns(ws_repos)
 
+    if evaluation and evaluation.get("repos"):
+        write_score_sheet(wb, evaluation, disp_name, disp_roll, disp_id)
+
     # ----------------------------------------------------
     # Sheet 2: Summary (SECOND)
     # ----------------------------------------------------
@@ -409,6 +411,7 @@ def build_student_workbook(profile: StudentProfileSummary) -> Workbook:
         ("Timezone", f"All dates and times are converted to {tz_label} (UTC+5:30) and formatted as yyyy-mm-dd hh:mm."),
         ("GitHub URL", f"Discovered from overrides.csv or Docker Hub repository description. README lookup: {'Enabled' if settings.GITHUB_README_LOOKUP else 'Disabled (GITHUB_README_LOOKUP=false)'}. Hidden if no GitHub links exist in the workbook."),
         ("Data Source", "Live queries to the public Docker Hub v2 API (https://hub.docker.com/v2/)."),
+        ("Score", "Present when the student was evaluated: each selected repository is scored 0-100 against the faculty rubric from what Docker Hub shows (build steps, README, tags, size), never by running the image. The student score is the weighted average; a faculty override replaces the suggested score."),
     ]
 
     for r_i, (k, v) in enumerate(notes_content, start=1):
@@ -434,11 +437,12 @@ def build_student_workbook(profile: StudentProfileSummary) -> Workbook:
 
     return wb
 
-def build_combined_workbook(profiles: List[StudentProfileSummary]) -> Workbook:
+def build_combined_workbook(profiles: List[StudentProfileSummary], scoring=None, students=None) -> Workbook:
     """
     Builds the combined export workbook:
     - Sheet 1: "All Submissions" (sorted by Roll Number, then Submission Date newest first)
     - Sheet 2: "Student Summary" (one row per student)
+    - "Marks" and "Repo scores" first when any student was evaluated (scoring = app.evaluation.RosterScoring)
     """
     wb = Workbook()
     
@@ -733,7 +737,142 @@ def build_combined_workbook(profiles: List[StudentProfileSummary]) -> Workbook:
     ws_students.auto_filter.ref = f"A1:{last_s_col}{st_row_idx - 1}"
     auto_fit_columns(ws_students)
 
+    if scoring is not None and students and getattr(scoring, "students", None):
+        write_marks_sheets(wb, scoring, students)
+
     return wb
+
+STATUS_LABELS = {
+    "scored": "Scored",
+    "overridden": "Overridden",
+    "needs_recheck": "Needs re-check (provisional)",
+    "not_evaluated": "Not evaluated",
+    "no_image": "No image pushed",
+}
+RESULT_LABELS = {"pass": "Pass", "partial": "Partial", "fail": "Fail", "skip": "Skipped", "off": "Off"}
+
+
+def _header_row(ws, row: int, headers: List[str]) -> None:
+    for c, h in enumerate(headers, start=1):
+        cell = ws.cell(row=row, column=c)
+        set_safe_cell(cell, h)
+        cell.font = HEADER_FONT
+        cell.fill = HEADER_FILL
+        cell.border = THIN_BORDER
+        cell.alignment = Alignment(vertical="center", wrap_text=True)
+
+
+def _cells(ws, row: int, values: list, bold: bool = False) -> None:
+    for c, v in enumerate(values, start=1):
+        cell = ws.cell(row=row, column=c)
+        set_safe_cell(cell, v)
+        cell.border = THIN_BORDER
+        cell.font = BOLD_FONT if bold else REGULAR_FONT
+        cell.alignment = Alignment(vertical="top", wrap_text=isinstance(v, str) and len(v) > 50)
+
+
+def _flag_text(flags: List[str], labels: dict) -> str:
+    return "; ".join(f"{f} {labels.get(f, '')}".strip() for f in flags)
+
+
+def write_score_sheet(wb: Workbook, evaluation: dict, name: str, roll: str, docker_id: str) -> None:
+    """Score sheet of the single-student workbook: one block of checks per evaluated repo."""
+    ws = wb.create_sheet(title="Score", index=1)
+    summary = evaluation.get("summary", {})
+    labels = evaluation.get("flag_labels", {})
+    final, suggested = summary.get("final"), summary.get("suggested")
+    set_safe_cell(ws.cell(row=1, column=1), f"Score: {name} ({roll}) - Docker ID: {docker_id}").font = TITLE_FONT
+    ws.row_dimensions[1].height = 24
+    line = (f"Final score: {final if final is not None else '-'} / 100 | Suggested: {suggested if suggested is not None else '-'}"
+            f" | Status: {STATUS_LABELS.get(summary.get('status'), summary.get('status', ''))}")
+    set_safe_cell(ws.cell(row=2, column=1), line).font = BOLD_FONT
+    row = 3
+    if evaluation.get("override_score") is not None:
+        set_safe_cell(ws.cell(row=row, column=1),
+                      f"Faculty override: {evaluation['override_score']} / 100. Note: {evaluation.get('override_note') or '-'}").font = SUBTITLE_FONT
+        row += 1
+    if summary.get("flags"):
+        set_safe_cell(ws.cell(row=row, column=1), "Flags: " + _flag_text(summary["flags"], labels)).font = SUBTITLE_FONT
+        row += 1
+    row += 1
+    for repo in evaluation.get("repos", []):
+        sel = repo.get("selection", {})
+        score = repo.get("score")
+        head = (f"Repository: {repo.get('repo')} | Tag: {repo.get('tag') or '-'} | Weight: {sel.get('weight', 1):g}"
+                f" | Score: {score if score is not None else '-'} / 100")
+        if repo.get("override_score") is not None:
+            head += f" | Override: {repo['override_score']} ({repo.get('override_note') or 'no note'})"
+        set_safe_cell(ws.cell(row=row, column=1), head).font = BOLD_FONT
+        row += 1
+        meta = (f"Status: {STATUS_LABELS.get(repo.get('status'), repo.get('status', ''))} | Base image: {repo.get('base') or '-'}"
+                f" ({repo.get('confidence') or '-'} confidence) | Own steps: {repo.get('own_steps', 0)} of {repo.get('total_steps', 0)}"
+                f" | Platform: {repo.get('platform') or '-'}")
+        set_safe_cell(ws.cell(row=row, column=1), meta).font = SUBTITLE_FONT
+        row += 1
+        if repo.get("note"):
+            set_safe_cell(ws.cell(row=row, column=1), repo["note"]).font = SUBTITLE_FONT
+            row += 1
+        _header_row(ws, row, ["Area", "Check", "Result", "Points", "Max", "Evidence"])
+        row += 1
+        for c in repo.get("checks", []):
+            _cells(ws, row, [c["area"], f"{c['id']} {c['label']}", RESULT_LABELS.get(c["status"], c["status"]),
+                             c["earned"], c["max_points"], c["evidence"]])
+            row += 1
+        for pen in repo.get("penalties", []):
+            set_safe_cell(ws.cell(row=row, column=1), f"Penalty: {pen}").font = SUBTITLE_FONT
+            row += 1
+        if repo.get("flags"):
+            set_safe_cell(ws.cell(row=row, column=1), "Flags: " + _flag_text(repo["flags"], labels)).font = SUBTITLE_FONT
+            row += 1
+        row += 1
+    for i, w in enumerate([16, 30, 10, 8, 7, 90], start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+
+def write_marks_sheets(wb: Workbook, scoring, students) -> None:
+    """Marks (one row per student) and Repo scores (one row per student x repo) for the combined workbook."""
+    from app.evaluation import class_flags, student_detail, student_summary
+    from app.scoring import CHECKS, FLAGS
+
+    extra = class_flags(scoring)
+    ws = wb.create_sheet(title="Marks", index=0)
+    ws.freeze_panes = "A2"
+    headers = ["Roll Number", "Student Name", "Docker ID", "Repos Evaluated", "Suggested /100", "Final /100",
+               "Status", "Override Note", "Flags"]
+    _header_row(ws, 1, headers)
+    r = 2
+    for st in students:
+        s = student_summary(scoring, st, extra)
+        se = scoring.students.get(st.docker_id_lower)
+        _cells(ws, r, [st.roll or "-", st.name or "-", st.docker_id, s["repos"], s["suggested"], s["final"],
+                       STATUS_LABELS.get(s["status"], s["status"]), (se.override_note if se else "") or "",
+                       _flag_text(s["flags"], FLAGS)])
+        r += 1
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{max(r - 1, 1)}"
+    auto_fit_columns(ws, max_width=60)
+
+    wr = wb.create_sheet(title="Repo scores", index=1)
+    wr.freeze_panes = "E2"
+    rh = ["Roll Number", "Student Name", "Docker ID", "Repository", "Tag", "Weight", "Score /100", "Final /100",
+          "Status", "Base Image", "Flags"] + [f"{c.id} {c.label}" for c in CHECKS]
+    _header_row(wr, 1, rh)
+    r = 2
+    for st in students:
+        if st.docker_id_lower not in scoring.students:
+            continue
+        detail = student_detail(scoring, st)
+        for repo in detail["repos"]:
+            earned = {c["id"]: (c["earned"] if c["status"] not in ("skip", "off") else RESULT_LABELS[c["status"]])
+                      for c in repo.get("checks", [])}
+            _cells(wr, r, [st.roll or "-", st.name or "-", st.docker_id, repo.get("repo"), repo.get("tag") or "-",
+                           repo.get("selection", {}).get("weight", 1), repo.get("score"), repo.get("final_score"),
+                           STATUS_LABELS.get(repo.get("status"), repo.get("status", "")), repo.get("base") or "-",
+                           _flag_text(repo.get("flags", []), FLAGS)] + [earned.get(c.id, "-") for c in CHECKS])
+            r += 1
+    wr.auto_filter.ref = f"A1:{get_column_letter(len(rh))}{max(r - 1, 1)}"
+    auto_fit_columns(wr, max_width=40)
+    wb.active = ws
+
 
 def generate_template_workbook() -> Workbook:
     """

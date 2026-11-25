@@ -12,12 +12,18 @@ the real interface against synthetic data:
   the browser.
 * Every student, repository, date and pull count is generated from the bundled
   demo roster (sample_roster.xlsx, synthetic names only).
-* Excel downloads are real workbooks built by app.excel from that demo data.
+* Excel downloads are real workbooks built by app.excel from that demo data,
+  scored with the default rubric (each student's latest pushed repo).
+* Scoring: every demo repo gets a synthetic image (a few Dockerfile patterns)
+  scored by the real app.scoring code at build time. In the browser,
+  demo-api.js only redoes the rubric arithmetic (points, on/off, deadline,
+  size limit, penalties), so rubric edits and overrides behave like the app.
 
 No uploaded file is ever read by the demo.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import random
@@ -30,6 +36,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from app.dockerhub import RepoSubmission, StudentProfileSummary, TagInfo  # noqa: E402
+from app.evaluation import RepoEval, RosterScoring, Selection, StudentEval, student_detail  # noqa: E402
+from app.layers import BaseSplit, Step  # noqa: E402
+from app.scoring import FLAGS, RepoFacts, Rubric, catalogue, score_repo  # noqa: E402
 from app.excel import (  # noqa: E402
     build_combined_workbook,
     build_student_workbook,
@@ -112,9 +121,121 @@ def preview_json(p: StudentProfileSummary) -> dict:
         "repos_with_github": p.repos_with_github, "github_links": [], "error_note": p.error_note,
         "repos": [
             {"name": s.name, "url": s.repo_url, "submission_date": s.submission_date,
-             "pulls": s.pull_count, "notes": s.notes}
+             "pulls": s.pull_count, "notes": s.notes,
+             "tags": [{"name": t.name, "pushed": t.tag_last_pushed}
+                      for t in sorted(s.tags, key=lambda t: t.tag_last_pushed or "", reverse=True)]}
             for s in p.submissions
         ],
+    }
+
+
+# --------------------------------------------------------------------------
+# Synthetic images for scoring (Dockerfile patterns students commonly push)
+# --------------------------------------------------------------------------
+PY_SLIM = [
+    "# debian.sh --arch 'amd64' out/ 'trixie' '@1795392000'",
+    "ENV PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "ENV LANG=C.UTF-8",
+    "RUN /bin/sh -c set -eux; apt-get update; apt-get install -y --no-install-recommends ca-certificates tzdata; rm -rf /var/lib/apt/lists/* # buildkit",
+    "ENV PYTHON_VERSION=3.11.18",
+    "RUN /bin/sh -c set -eux; apt-get install -y --no-install-recommends gcc; make install; rm -rf /var/lib/apt/lists/* # buildkit",
+    'CMD ["python3"]',
+]
+NGINX_ALPINE = [
+    "ADD alpine-minirootfs-3.24.4-x86_64.tar.gz / # buildkit",
+    'CMD ["/bin/sh"]',
+    "ENV NGINX_VERSION=1.31.10",
+    "RUN /bin/sh -c set -x && apk add --no-cache nginx # buildkit",
+    'ENTRYPOINT ["/docker-entrypoint.sh"]',
+    "EXPOSE map[80/tcp:{}]",
+    'CMD ["nginx" "-g" "daemon off;"]',
+]
+NODE_ALPINE = [
+    "ADD alpine-minirootfs-3.23.4-x86_64.tar.gz / # buildkit",
+    'CMD ["/bin/sh"]',
+    "ENV NODE_VERSION=20.20.2",
+    "RUN /bin/sh -c addgroup -g 1000 node && adduser -u 1000 -G node -D node && apk add --no-cache libstdc++ # buildkit",
+    'ENTRYPOINT ["docker-entrypoint.sh"]',
+    'CMD ["node"]',
+]
+UBUNTU = [
+    "ARG RELEASE", "ARG LAUNCHPAD_BUILD_ARCH", "LABEL org.opencontainers.image.version=24.04",
+    "ADD file:54dafd97985c3ec227e2c96be9290657cf2ab456885b5fc8a24c9278bca65e60 in /", 'CMD ["/bin/bash"]',
+]
+TEMPLATES = [
+    # name, base steps, base, confidence, own steps, size MB range
+    ("python-good", PY_SLIM, "python:3.11.18-slim", "high", [
+        "WORKDIR /app", "LABEL maintainer=demo org.opencontainers.image.version=1.0",
+        "COPY requirements.txt . # buildkit", "RUN /bin/sh -c pip install --no-cache-dir -r requirements.txt # buildkit",
+        "COPY . . # buildkit", "RUN /bin/sh -c useradd -m appuser # buildkit", "USER appuser",
+        "EXPOSE map[8000/tcp:{}]", "HEALTHCHECK {Test:[CMD-SHELL curl -f http://localhost:8000/ || exit 1]}",
+        'CMD ["python" "app.py"]'], (55, 140)),
+    ("python-basic", PY_SLIM, "python:3.11.18-slim", "high", [
+        "WORKDIR /app", "COPY . . # buildkit", "RUN /bin/sh -c pip install -r requirements.txt # buildkit",
+        "EXPOSE map[5000/tcp:{}]", 'CMD ["python" "app.py"]'], (60, 180)),
+    ("nginx-static", NGINX_ALPINE, "nginx:1.31.10-alpine", "high", [
+        "COPY index.html /usr/share/nginx/html/ # buildkit", "COPY style.css /usr/share/nginx/html/ # buildkit"], (20, 30)),
+    ("node-app", NODE_ALPINE, "node:20.20.2-alpine", "high", [
+        "WORKDIR /usr/src/app", "COPY package*.json ./ # buildkit",
+        "RUN /bin/sh -c npm ci --omit=dev && npm cache clean --force # buildkit", "COPY . . # buildkit",
+        "USER node", "EXPOSE map[3000/tcp:{}]", 'CMD ["node" "server.js"]'], (45, 90)),
+    ("ubuntu-sloppy", UBUNTU, "rootfs root", "medium", [
+        "RUN /bin/sh -c apt-get update # buildkit", "RUN /bin/sh -c apt-get install -y python3 python3-pip # buildkit",
+        "RUN /bin/sh -c pip3 install flask # buildkit", "ADD app.py /app/ # buildkit",
+        "ENV SECRET_KEY=demo-secret-not-real-123", 'CMD ["python3" "/app/app.py"]'], (180, 420)),
+    ("retag", NGINX_ALPINE, "nginx:1.31.10-alpine", "high", [], (20, 22)),
+]
+READMES = [
+    "# {repo}\n\nCourse assignment image. It starts a small web service and keeps no state between requests, "
+    "so it can be restarted at any time.\n\n## Run\n\n```\ndocker run -p 8000:8000 {did}/{repo}:latest\n```\n\n"
+    "## Notes\n\nBuilt from the Dockerfile in the course repository. Logs go to standard output.\n",
+    "# {repo}\n\nAssignment submission. Pull it with docker pull {did}/{repo} and run it.\n",
+    "",
+]
+
+
+def _digest(*parts: str) -> str:
+    return "sha256:" + hashlib.sha256("|".join(parts).encode()).hexdigest()
+
+
+def demo_facts(index: int, sub: RepoSubmission, rng: random.Random, digest_key: str) -> RepoFacts:
+    tags = [{"name": t.name, "pushed": t.tag_last_pushed} for t in sub.tags]
+    latest = max((t for t in sub.tags if t.tag_last_pushed), key=lambda t: t.tag_last_pushed, default=None)
+    facts = RepoFacts(repo=sub.name, tag=latest.name if latest else None, tags=tags,
+                      description="" if rng.random() < 0.25 else f"Course assignment: {sub.name.replace('-', ' ')}")
+    if latest is None:
+        return facts
+    pick = rng.choice([0, 0, 1, 1, 2, 3, 3, 4, 5])
+    if digest_key == "shared-image":
+        pick = 0
+    name, base, base_name, conf, own, (lo, hi) = TEMPLATES[pick]
+    steps = []
+    for i, ins in enumerate(base + own):
+        layer = ins.split(" ", 1)[0] in ("RUN", "COPY", "ADD", "#")
+        key = base_name if i < len(base) else digest_key
+        steps.append(Step(ins, size=rng.randint(1, 9) * 1_000_000 if layer else 0,
+                          digest=_digest(key, str(i), ins) if layer else None))
+    facts.readme = rng.choice(READMES).format(repo=sub.name, did=sub.namespace)
+    facts.platforms = ["linux/amd64", "linux/arm64"] if rng.random() < 0.3 else ["linux/amd64"]
+    facts.platform = "linux/amd64"
+    facts.image_size = rng.randint(lo, hi) * 1024 * 1024
+    facts.steps = steps
+    facts.split = BaseSplit(len(base), base_name, conf)
+    facts.pushed_at = latest.tag_last_pushed
+    facts.has_image = True
+    return facts
+
+
+def compact(facts: RepoFacts) -> dict:
+    """What demo-api.js needs to rescore a repo under any rubric."""
+    r = score_repo(facts, Rubric.default())
+    return {
+        "has_image": facts.has_image, "base": r.base, "confidence": r.confidence, "own_steps": r.own_steps,
+        "total_steps": r.total_steps, "platform": r.platform, "size_mb": round(facts.image_size / 1048576),
+        "flags": [f for f in r.flags if f in ("F3", "F6")],
+        "secrets": [p.split("(", 1)[1].rsplit(")", 1)[0] if "(" in p else p for p in r.penalties if p.startswith("Secret")],
+        "fingerprint": ",".join(r.fingerprint) if r.fingerprint else None,
+        "checks": [[c.id, c.fraction, c.status, c.evidence] for c in r.checks],
     }
 
 
@@ -127,7 +248,7 @@ BANNER_CSS = """
 
 BANNER_HTML = f"""  <div class="demo-banner" role="note">
     <div class="wrap">
-      <span>Demo mode: this page runs on GitHub Pages with made-up sample data. Uploading any .xlsx loads the built-in demo class; your file is never read or sent anywhere.</span>
+      <span>Demo mode: this page runs on GitHub Pages with made-up sample data. Uploading any .xlsx loads the built-in demo class; your file is never read or sent anywhere. Scoring works on synthetic images; Excel downloads are pre-built samples.</span>
       <a href="{CODESPACES_URL}" target="_blank" rel="noopener">Run the full app on GitHub Codespaces &rarr;</a>
     </div>
   </div>
@@ -145,18 +266,39 @@ def build(out: Path) -> None:
 
     # Demo class from the bundled synthetic roster
     roster = parse_roster_excel((ROOT / "sample_roster.xlsx").read_bytes(), "sample_roster.xlsx")
-    students, previews, filenames, profiles = [], {}, {}, []
+    students, previews, filenames, profiles, scoring_data = [], {}, {}, [], {}
+    scoring = RosterScoring()
     for i, s in enumerate(roster.students, start=1):
         p = demo_profile(i, s.roll, s.name, s.docker_id)
         profiles.append(p)
         key = s.docker_id.lower()
         students.append(s.to_dict())
         previews[key] = preview_json(p)
+        rng = random.Random(5000 + i)
+        repo_facts = {}
+        for j, sub in enumerate(p.submissions):
+            # Students 7 and 8 pushed the same image (shows the "possible copy" flag).
+            dkey = "shared-image" if (i in (7, 8) and j == 0) else f"{key}/{sub.name}"
+            repo_facts[sub.name] = demo_facts(i, sub, rng, dkey)
+        scoring_data[key] = {name: compact(f) for name, f in repo_facts.items()}
+        # Pre-built Excel samples: each student's latest pushed repo, default rubric.
+        pushed = [x for x in p.submissions if x.submission_date]
+        if pushed:
+            latest = max(pushed, key=lambda x: x.submission_date)
+            f = repo_facts[latest.name]
+            sel = Selection(repo=latest.name, tag=f.tag)
+            scoring.students[key] = StudentEval(selections=[sel], repos={latest.name: RepoEval(
+                selection=sel, facts=f, result=score_repo(f, scoring.rubric))})
+    for i, (s, p) in enumerate(zip(roster.students, profiles), start=1):
+        key = s.docker_id.lower()
         fname = make_student_filename(s.roll, s.docker_id).replace(".xlsx", "_DEMO.xlsx")
         filenames[key] = fname
-        (out / "demo-files" / "students" / f"{key}.xlsx").write_bytes(workbook_to_bytes(build_student_workbook(p)))
+        evaluation = student_detail(scoring, s) if key in scoring.students else None
+        (out / "demo-files" / "students" / f"{key}.xlsx").write_bytes(
+            workbook_to_bytes(build_student_workbook(p, evaluation=evaluation)))
 
-    (out / "demo-files" / "All_Submissions_DEMO.xlsx").write_bytes(workbook_to_bytes(build_combined_workbook(profiles)))
+    (out / "demo-files" / "All_Submissions_DEMO.xlsx").write_bytes(workbook_to_bytes(
+        build_combined_workbook(profiles, scoring=scoring, students=roster.students)))
     (out / "demo-files" / "roster_template.xlsx").write_bytes(workbook_to_bytes(generate_template_workbook()))
 
     data = {
@@ -172,6 +314,8 @@ def build(out: Path) -> None:
         "previews": previews,
         "filenames": filenames,
         "combined_filename": "All_Submissions_DEMO.xlsx",
+        "scoring": {"rubric": Rubric.default().to_dict(), "checks": catalogue(), "flags": FLAGS,
+                    "repos": scoring_data},
     }
     (out / "demo" / "demo-data.json").write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
     shutil.copy(ROOT / "scripts" / "pages_demo" / "demo-api.js", out / "demo" / "demo-api.js")

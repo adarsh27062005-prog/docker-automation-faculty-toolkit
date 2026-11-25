@@ -1,14 +1,17 @@
 from __future__ import annotations
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 import httpx
 
 from app.cache import cache
 from app.config import settings
 from app.github_links import discover_github_links, load_overrides
+from app.layers import pick_image, platforms_of, split_base, steps_from_layers
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +19,39 @@ DOCKER_HUB_API_BASE = "https://hub.docker.com/v2"
 
 # Concurrency semaphore to avoid overwhelming Docker Hub
 SEMAPHORE = asyncio.Semaphore(3)
+
+# Docker Hub's API allows ~180 requests per window and reports what is left in
+# x-ratelimit-remaining / x-ratelimit-reset. When it runs low, every request
+# waits until the window resets instead of failing (see note_rate_limit).
+RATE_LIMIT: Dict[str, float] = {"wait_until": 0.0}
+RATE_LIMIT_LOW_WATER = 3
+RATE_LIMIT_MAX_WAIT = 60.0
+OFFICIAL_CACHE_TTL = 24 * 3600   # official base images' step lists rarely change
+
+
+def _header_int(value: Any) -> Optional[int]:
+    if not isinstance(value, str):
+        return None
+    head = value.split(";")[0].strip()
+    return int(head) if head.isdigit() else None
+
+
+def note_rate_limit(resp: Any, now: Optional[float] = None) -> None:
+    """Pause future requests when Docker Hub says the rate-limit window is nearly used up."""
+    now = time.time() if now is None else now
+    try:
+        headers = resp.headers
+        remaining = _header_int(headers.get("x-ratelimit-remaining"))
+        reset = _header_int(headers.get("x-ratelimit-reset"))
+    except Exception:
+        return
+    if getattr(resp, "status_code", None) == 429 or (remaining is not None and remaining <= RATE_LIMIT_LOW_WATER):
+        wait = (reset - now) if reset and reset > now else 10.0
+        RATE_LIMIT["wait_until"] = max(RATE_LIMIT["wait_until"], now + min(max(wait, 1.0), RATE_LIMIT_MAX_WAIT))
+
+
+def rate_limit_wait_seconds() -> float:
+    return max(0.0, RATE_LIMIT["wait_until"] - time.time())
 
 @dataclass
 class TagInfo:
@@ -120,6 +156,10 @@ class DockerHubClient:
     async def _fetch(self, client: httpx.AsyncClient, url: str) -> Optional[httpx.Response]:
         delay = 1.0
         for attempt in range(self.max_retries):
+            pause = rate_limit_wait_seconds()
+            if pause > 0:
+                logger.info("Docker Hub rate limit nearly used; waiting %.0fs", pause)
+                await asyncio.sleep(pause)
             async with SEMAPHORE:
                 await asyncio.sleep(0.02)
                 try:
@@ -128,6 +168,7 @@ class DockerHubClient:
                         timeout=self.timeout,
                         headers={"User-Agent": "DockerSubmissionApp/1.0"}
                     )
+                    note_rate_limit(resp)
                     if resp.status_code == 429:
                         logger.warning("Docker Hub 429 on %s; retry in %.1fs", url, delay)
                         await asyncio.sleep(delay)
@@ -434,6 +475,134 @@ class DockerHubClient:
                 cache.set(cache_key, summary)
             return summary
 
+        finally:
+            if owns_client:
+                await client.aclose()
+
+    # ------------------------------------------------------------------
+    # Scoring support: repo details, a tag's step list, official bases
+    # ------------------------------------------------------------------
+
+    async def _get_json(self, client: httpx.AsyncClient, url: str) -> Tuple[Optional[int], Any]:
+        """(status, json). status is None when Docker Hub could not be reached."""
+        resp = await self._fetch(client, url)
+        if resp is None:
+            return None, None
+        status = getattr(resp, "status_code", None)
+        if status != 200:
+            return status, None
+        try:
+            return 200, resp.json()
+        except ValueError:
+            return None, None
+
+    async def get_repo_detail(self, client: httpx.AsyncClient, namespace: str, repo: str) -> Optional[dict]:
+        """Description and README (full_description). None on a Docker Hub error."""
+        key = f"repo_detail:{namespace}/{repo}"
+        hit = cache.get(key)
+        if hit is not None:
+            return hit
+        status, data = await self._get_json(client, f"{DOCKER_HUB_API_BASE}/repositories/{quote(namespace)}/{quote(repo)}/")
+        if status != 200 or not isinstance(data, dict):
+            return None
+        detail = {"description": data.get("description") or "", "full_description": data.get("full_description") or ""}
+        cache.set(key, detail)
+        return detail
+
+    async def get_tag_images(self, client: httpx.AsyncClient, namespace: str, repo: str, tag: str) -> Tuple[bool, List[dict]]:
+        """(ok, images) for one tag. A 404 is a real answer (no image); other failures are not."""
+        key = f"tag_images:{namespace}/{repo}:{tag}"
+        hit = cache.get(key)
+        if hit is not None:
+            return True, hit
+        url = f"{DOCKER_HUB_API_BASE}/repositories/{quote(namespace)}/{quote(repo)}/tags/{quote(tag, safe='')}/images"
+        status, data = await self._get_json(client, url)
+        if status == 404:
+            return True, []
+        if status != 200 or not isinstance(data, list):
+            return False, []
+        cache.set(key, data)
+        return True, data
+
+    async def official_tag_names(self, client: httpx.AsyncClient, family: str, name_filter: str) -> Optional[List[str]]:
+        key = f"official_tags:{family}:{name_filter}"
+        hit = cache.get(key)
+        if hit is not None:
+            return hit
+        url = f"{DOCKER_HUB_API_BASE}/repositories/library/{quote(family)}/tags?page_size=100&name={quote(name_filter)}"
+        status, data = await self._get_json(client, url)
+        if status != 200 or not isinstance(data, dict):
+            return None
+        names = [t.get("name", "") for t in data.get("results") or [] if t.get("name")]
+        cache.set(key, names, ttl=OFFICIAL_CACHE_TTL)
+        return names
+
+    async def official_steps(self, client: httpx.AsyncClient, family: str, tag: str, arch: str) -> Optional[List[str]]:
+        key = f"official_steps:{family}:{tag}:{arch}"
+        hit = cache.get(key)
+        if hit is not None:
+            return hit
+        ok, images = await self.get_tag_images(client, "library", family, tag)
+        if not ok:
+            return None
+        match = [i for i in images if i.get("os") == "linux" and i.get("architecture") == arch]
+        image = match[0] if match else None
+        steps = [s.instruction for s in steps_from_layers(image.get("layers"))] if image else []
+        cache.set(key, steps, ttl=OFFICIAL_CACHE_TTL)
+        return steps
+
+    async def get_repo_facts(self, submission: RepoSubmission, tag: Optional[str],
+                             client: Optional[httpx.AsyncClient] = None):
+        """Everything the scorer needs for one repo + tag (see app.scoring.RepoFacts).
+
+        The repo and tag must already be validated against the student's own
+        Docker Hub listing; nothing user-typed is forwarded here.
+        """
+        from app.scoring import RepoFacts  # local import: scoring imports layers only
+
+        tags = [{"name": t.name, "pushed": t.tag_last_pushed} for t in submission.tags]
+        facts = RepoFacts(repo=submission.name, tag=tag, tags=tags, description=submission.description or "")
+        if submission.data_incomplete:
+            if not submission.tags:
+                facts.error = submission.notes or TAGS_UNAVAILABLE_NOTE
+                return facts
+            # Some tag pages failed (very large repos): the image itself can still be
+            # checked, but say that versioning checks only saw the tags that loaded.
+            facts.warning = "Tag list incomplete (Docker Hub error): versioning checks used the tags that loaded."
+        if not tag:
+            return facts  # no tag at all: no image pushed
+
+        owns_client = client is None
+        client = client or httpx.AsyncClient()
+        try:
+            ns = submission.namespace
+            detail, (ok, images) = await asyncio.gather(
+                self.get_repo_detail(client, ns, submission.name),
+                self.get_tag_images(client, ns, submission.name, tag),
+            )
+            if detail is None or not ok:
+                facts.error = "Repository data unavailable (Docker Hub error) - re-check later"
+                return facts
+            facts.description = detail["description"] or facts.description
+            facts.readme = detail["full_description"]
+            facts.platforms = platforms_of(images)
+            image = pick_image(images)
+            pushed = next((t["pushed"] for t in tags if t["name"] == tag), None)
+            facts.pushed_at = pushed or (image.get("last_pushed") if image else None)
+            if image is None:
+                return facts
+            arch = image.get("architecture") or "amd64"
+            facts.has_image = True
+            facts.platform = f"{image.get('os')}/{arch}"
+            facts.image_size = int(image.get("size") or 0)
+            facts.image_digest = image.get("digest")
+            facts.steps = steps_from_layers(image.get("layers"))
+            facts.split = await split_base(
+                [s.instruction for s in facts.steps],
+                lambda fam, f: self.official_tag_names(client, fam, f),
+                lambda fam, t: self.official_steps(client, fam, t, arch),
+            )
+            return facts
         finally:
             if owns_client:
                 await client.aclose()

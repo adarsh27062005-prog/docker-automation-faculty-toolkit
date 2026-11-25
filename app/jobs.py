@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Set
 from zoneinfo import ZoneInfo
 from app.config import settings
-from app.dockerhub import dockerhub_client, StudentProfileSummary
+from app.dockerhub import dockerhub_client, StudentProfileSummary, rate_limit_wait_seconds
 from app.excel import build_combined_workbook, workbook_to_bytes, sanitize_filename
 from app.roster import Roster, Student
 
@@ -27,6 +27,15 @@ class ExportJob:
     excel_bytes: Optional[bytes] = None
     download_filename: str = ""
     created_at: float = field(default_factory=time.time)
+    kind: str = "export"          # "export" (Excel for all students) or "evaluate" (score all students)
+    note: str = ""                # e.g. "Waiting for Docker Hub rate limit"
+    summary: Dict[str, int] = field(default_factory=dict)
+
+    def status_note(self) -> str:
+        wait = rate_limit_wait_seconds()
+        if self.status == "running" and wait > 0:
+            return f"Waiting {wait:.0f}s for the Docker Hub rate limit"
+        return self.note
 
 class JobManager:
     def __init__(self, ttl_hours: int = settings.JOB_TTL_HOURS):
@@ -50,12 +59,74 @@ class JobManager:
         self._purge_expired()
         return self._jobs.get(job_id)
 
-    def find_running_job_for_roster(self, roster_id: str) -> Optional[ExportJob]:
+    def find_running_job_for_roster(self, roster_id: str, kind: str = "export") -> Optional[ExportJob]:
         self._purge_expired()
         for j in self._jobs.values():
-            if j.roster_id == roster_id and j.status == "running":
+            if j.roster_id == roster_id and j.status == "running" and j.kind == kind:
                 return j
         return None
+
+    def _launch(self, job: ExportJob, coro) -> None:
+        self._jobs[job.job_id] = job
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def start_evaluation_job(self, roster: Roster, rule: str, text: str = "", overwrite: bool = False) -> str:
+        """Score every student. Students with a selection keep it unless overwrite;
+        the others get repos picked by `rule` (keep = skip students without a selection)."""
+        async with self._lock:
+            existing = self.find_running_job_for_roster(roster.roster_id, kind="evaluate")
+            if existing:
+                return existing.job_id
+            job = ExportJob(job_id=secrets.token_urlsafe(16), roster_id=roster.roster_id,
+                            uploaded_filename=roster.filename, status="running", done=0,
+                            total=len(roster.students), kind="evaluate")
+            self._launch(job, self._run_evaluation_job(job, roster, rule, text, overwrite))
+            return job.job_id
+
+    async def _run_evaluation_job(self, job: ExportJob, roster: Roster, rule: str, text: str, overwrite: bool) -> None:
+        from app.evaluation import auto_select, evaluate_student, scoring_for
+        sem = asyncio.Semaphore(2)
+        counts = {"evaluated": 0, "no_match": 0, "skipped": 0, "failed": 0}
+        scoring = scoring_for(roster)
+
+        async def one(student: Student) -> None:
+            async with sem:
+                job.current = student.docker_id
+                try:
+                    existing = scoring.students.get(student.docker_id_lower)
+                    if existing and existing.selections and not overwrite:
+                        await evaluate_student(roster, student)
+                        counts["evaluated"] += 1
+                    elif rule == "keep":
+                        counts["skipped"] += 1
+                    else:
+                        profile = await dockerhub_client.get_student_profile(
+                            roll=student.roll, name=student.name, docker_id=student.docker_id, use_cache=True)
+                        selections = auto_select(profile, rule, text)
+                        if selections:
+                            await evaluate_student(roster, student, selections, profile=profile)
+                            counts["evaluated"] += 1
+                        else:
+                            counts["no_match"] += 1
+                except Exception as e:
+                    logger.error("Error evaluating %s in job %s: %s", student.docker_id, job.job_id, e)
+                    counts["failed"] += 1
+                job.done += 1
+
+        try:
+            await asyncio.gather(*(one(s) for s in roster.students))
+            job.current = None
+            job.summary = counts
+            job.note = (f"Scored {counts['evaluated']} student(s)"
+                        + (f", no matching repo for {counts['no_match']}" if counts["no_match"] else "")
+                        + (f", {counts['skipped']} without a selection skipped" if counts["skipped"] else "")
+                        + (f", {counts['failed']} failed" if counts["failed"] else "") + ".")
+            job.status = "done"
+        except Exception as exc:
+            logger.exception("Evaluation job %s failed: %s", job.job_id, exc)
+            job.status, job.error, job.current = "failed", str(exc), None
 
     async def start_job(self, roster: Roster) -> str:
         async with self._lock:
@@ -131,7 +202,7 @@ class JobManager:
             clean_base = sanitize_filename(f"All_Submissions_{base_name}_{today_str}")
             job.download_filename = f"{clean_base}.xlsx"
 
-            wb = build_combined_workbook(profiles)
+            wb = build_combined_workbook(profiles, scoring=roster.scoring, students=roster.students)
             job.excel_bytes = workbook_to_bytes(wb)
             job.status = "done"
             logger.info("Export job %s completed successfully (%d profiles)", job.job_id, len(profiles))
