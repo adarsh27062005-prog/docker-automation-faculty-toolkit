@@ -51,6 +51,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload   # dev ser
 - Tests must stay offline. Mock `DockerHubClient._fetch`.
 - **The repo is public** (github.com/adarsh27062005-prog/docker-automation-faculty-toolkit). **Never commit real student data** (names, roll numbers, Docker IDs, exports). Samples, tests and docs use synthetic `Demo Student NN` / `DEMO.U4CYS23NNN` / `demo-student-NN`. Real exports stay in git-ignored `scratch/exports/`. README screenshots in `docs/screenshots/` must also use demo data.
 - Git: branch `main`. The user asks before commits. Commit identity comes from the global git config (user chose to keep it).
+- **Revert point: tag `v1.0`** (`3e426a0`, pushed to GitHub) is the web app as it was before the scoring upgrade. Upgrade work happens on branch **`feature/repo-scoring`**; `main` (and so the live Pages demo, which deploys on every push to `main`) stays at `v1.0` until the user approves the upgrade. Not approved → `git switch main` and delete the branch. Already merged and must undo → `git revert` the merge, or ask before any `reset --hard v1.0` + force-push.
 
 ## Hosting (GitHub only, user's choice: no Render)
 - **Full app:** GitHub Codespaces via `.devcontainer/devcontainer.json` (Python 3.11 image, `pip install --user -r requirements.txt`, auto-starts uvicorn on 8000 and opens the browser). Link: https://codespaces.new/adarsh27062005-prog/docker-automation-faculty-toolkit?quickstart=1
@@ -73,7 +74,8 @@ Taken from amrita.edu campus/school pages (visited with Playwright, 2026-11-19):
 - `IMPLEMENTATION_PLAN.md`: original spec (historical).
 
 ## Open items
-- Next web-app updates: *to be defined with the user.*
+- **Next upgrade: repo selection + scoring.** Faculty pick any number of repos per student; each is scored 0–100 against an editable, domain-agnostic rubric (submission, docs, build practices from layer instructions, versioning, lean image) and the student score is a weighted average that faculty can override. Plan and decisions: `docs/plans/repo-scoring.md`. **Phase 1 done** (official-base prefix match separates the student's own steps from the base, 15/15 public images; Hub API only, because the registry allows just 100 anonymous pulls/h per IP). Next: Phase 2, scoring engine `app/scoring.py`, on branch `feature/repo-scoring`.
+- `SUBMISSION_DEADLINE` is env-only today, so faculty on the web page or Codespaces can't set it. The scoring rubric panel replaces this.
 - Montserrat is not bundled locally (offline campus machines fall back to system fonts).
 - Excel reports still use the old blue header fill (`1F4E78`), not the crimson theme.
 - `GITHUB_TOKEN` has no effect: GitHub enrichment is not wired in.
@@ -94,3 +96,6 @@ Taken from amrita.edu campus/school pages (visited with Playwright, 2026-11-19):
 | 2026-11-20 | (all) | History rewritten with `git filter-branch` to replace the 59 real students with synthetic data and drop `scripts/survey_output/`, so commit IDs changed (baseline is now `b46b8fb`). The pre-rewrite history exists only as a local bundle backup. |
 | 2026-11-20 | — | New README (features, screenshots with demo data, quick start, config, architecture, API, security) and push to GitHub. |
 | 2026-11-23 | `05ca268` | GitHub-only hosting: Codespaces devcontainer + GitHub Pages demo (Actions workflow, in-browser demo API, demo workbooks). Render config removed. Optional Basic-auth middleware (`tests/test_basic_auth.py`). Export-all download now uses fetch+blob. Fixed `Demo_Student_09` → `Demo Student 09` in the samples. README links now point to the live demo and Codespaces. 67 tests. |
+| 2026-11-23 | `3e426a0` | Pages enabled (source: GitHub Actions); first deploy succeeded. Live demo verified in a real browser (upload, preview, single + combined Excel, mobile, no console errors). |
+| 2026-11-26 | — | Drafted the repo selection + scoring plan with the user (`docs/plans/repo-scoring.md`). Confirmed the Hub API `tags/{tag}/images` endpoint returns per-layer Dockerfile instructions without using pull quota. |
+| 2026-11-26 | — | Tagged `v1.0` (= `3e426a0`, pushed) as the revert point; upgrade work moved to branch `feature/repo-scoring`. Phase 1 spike: `scripts/spike_layer_split.py`; results and rubric changes recorded in the plan. |
