@@ -51,6 +51,9 @@ from app.roster import parse_roster_excel  # noqa: E402
 REPO = os.environ.get("GITHUB_REPOSITORY", "adarsh27062005-prog/docker-automation-faculty-toolkit")
 CODESPACES_URL = f"https://codespaces.new/{REPO}?quickstart=1"
 REPO_URL = f"https://github.com/{REPO}"
+# When set (by .github/workflows/pages.yml), the Pages site forwards visitors to the
+# live app and the sample-data demo moves to /demo/.
+LIVE_APP_URL = os.environ.get("LIVE_APP_URL", "").strip().rstrip("/")
 
 REPO_POOL = [
     "flask-todo-api", "nginx-reverse-proxy", "redis-cache-demo", "node-express-app",
@@ -246,18 +249,65 @@ BANNER_CSS = """
     .demo-banner a:hover { color: #000; }
 """
 
-BANNER_HTML = f"""  <div class="demo-banner" role="note">
+def banner_html() -> str:
+    link = (
+        f'<a href="{LIVE_APP_URL}/" rel="noopener">Open the live app (real Docker Hub data) &rarr;</a>'
+        if LIVE_APP_URL else
+        f'<a href="{CODESPACES_URL}" target="_blank" rel="noopener">Run the full app on GitHub Codespaces &rarr;</a>'
+    )
+    return f"""  <div class="demo-banner" role="note">
     <div class="wrap">
       <span>Demo mode: this page runs on GitHub Pages with made-up sample data. Uploading any .xlsx loads the built-in demo class; your file is never read or sent anywhere. Scoring works on synthetic images; Excel downloads are pre-built samples.</span>
-      <a href="{CODESPACES_URL}" target="_blank" rel="noopener">Run the full app on GitHub Codespaces &rarr;</a>
+      {link}
     </div>
   </div>
 """
 
 
+REDIRECT_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faculty Toolkit | Amrita Vishwa Vidyapeetham</title>
+  <meta http-equiv="refresh" content="0; url={url}/">
+  <link rel="canonical" href="{url}/">
+  <link rel="icon" type="image/svg+xml" href="demo/static/img/favicon.svg">
+  <style>
+    body {{ margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+           font-family: Montserrat, "Segoe UI", system-ui, sans-serif; background: #fdf8f9; color: #3a3a3a; }}
+    main {{ max-width: 440px; padding: 24px 16px; text-align: center; }}
+    h1 {{ color: #af0c3e; font-size: 1.3rem; margin: 0 0 10px; }}
+    p {{ font-size: 0.92rem; line-height: 1.55; }}
+    a {{ color: #8e0a33; font-weight: 600; }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Opening the Faculty Toolkit&hellip;</h1>
+    <p>If nothing happens, <a href="{url}/">open the live app</a>. The free server may take about a minute to wake up.</p>
+    <p><a href="demo/">Sample-data demo</a></p>
+  </main>
+  <script>location.replace("{url}/");</script>
+</body>
+</html>
+"""
+
+
 def build(out: Path) -> None:
+    """Pages site: the demo at the root, or (with LIVE_APP_URL) a redirect plus the demo in /demo/."""
     if out.exists():
         shutil.rmtree(out)
+    if LIVE_APP_URL:
+        build_demo(out / "demo")
+        (out / "index.html").write_text(REDIRECT_HTML.format(url=LIVE_APP_URL), encoding="utf-8")
+        (out / ".nojekyll").write_text("", encoding="utf-8")
+        print(f"github.io forwards to {LIVE_APP_URL}; demo in {out / 'demo'}")
+    else:
+        build_demo(out)
+
+
+def build_demo(out: Path) -> None:
     (out / "demo").mkdir(parents=True)
     (out / "demo-files" / "students").mkdir(parents=True)
 
@@ -330,7 +380,7 @@ def build(out: Path) -> None:
         ("<title>Docker Hub Submission Evaluator | Amrita Vishwa Vidyapeetham</title>",
          "<title>Demo | Docker Hub Submission Evaluator | Amrita Vishwa Vidyapeetham</title>"),
         ("  </style>", BANNER_CSS + "  </style>\n  <script src=\"demo/demo-api.js\"></script>"),
-        ("<body>\n", "<body>\n" + BANNER_HTML),
+        ("<body>\n", "<body>\n" + banner_html()),
     ]
     for old, new in replacements:
         if html.count(old) < 1:
